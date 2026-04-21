@@ -16,6 +16,7 @@ from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 
+from chat.cards import card_to_fallback_text, is_card_element
 from chat.errors import NotImplementedError as ChatNotImplementedError
 from chat.markdown import paragraph, parse_markdown, root, text, to_plain_text
 from chat.message import Message
@@ -104,12 +105,10 @@ def _extract_message_content(
         if "ast" in message:
             ast = message["ast"]
             return (to_plain_text(ast), ast, attachments)
-        if "card" in message or message.get("type") == "card":
-            # Part B: card rendering requires ``cards.py``.
-            raise ChatNotImplementedError(
-                "Card / JSX postable messages are not yet supported in chat-py",
-                "cards",
-            )
+        if is_card_element(message):
+            fallback = card_to_fallback_text(message)
+            ast = parse_markdown(fallback) if fallback else root([])
+            return (to_plain_text(ast), ast, attachments)
 
     raise ValueError(f"Invalid PostableMessage format: {type(message).__name__}")
 
