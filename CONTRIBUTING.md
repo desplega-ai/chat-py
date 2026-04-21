@@ -68,9 +68,17 @@ Each package has its own `pyproject.toml`, `src/<module>/`, and `tests/`. The to
 ## Commit style
 
 - One logical change per commit.
-- Subject: `<package>: <imperative summary>` (e.g. `chat: port streaming markdown renderer`).
+- Subject: `[DES-XXX] <package>: <imperative summary>` (e.g. `[DES-177] chat: port streaming markdown renderer`).
 - Body: explain the *why* and link upstream references if ported: `Ports vercel/chat@abc1234`.
 - Sign with `Co-Authored-By: Claude <noreply@anthropic.com>` when AI-assisted.
+
+### Linear issue tracking
+
+Every commit must reference the Linear issue ID it belongs to using the `[DES-XXX]` prefix in the subject line. This is how we keep the Linear project board in sync with `main` without PRs.
+
+- Find the ticket for the package/phase you are working on in the [chat-sdk port project](https://linear.app/desplega-labs/project/chat-sdk-port-112924072c77/overview).
+- If the work spans multiple tickets, pick the primary one for the subject and mention the others in the body (`Also: DES-YYY, DES-ZZZ`).
+- If no ticket exists yet, create one in the project before committing.
 
 ## Pull requests / direct pushes
 
