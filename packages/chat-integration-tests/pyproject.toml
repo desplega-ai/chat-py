@@ -1,0 +1,36 @@
+[project]
+name = "chat-integration-tests"
+version = "0.1.0"
+description = "Integration tests for chat-py (replay fixtures + live tests)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.13"
+authors = [
+    { name = "Desplega Labs", email = "hello@desplega.ai" },
+]
+keywords = ["chat", "bot", "slack", "teams", "discord", "google-chat", "telegram", "github", "linear", "whatsapp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = ["chat", "chat-adapter-shared", "chat-adapter-slack", "chat-adapter-discord", "chat-adapter-teams", "chat-adapter-gchat", "chat-adapter-telegram", "chat-adapter-github", "chat-adapter-linear", "chat-adapter-whatsapp", "chat-adapter-state-memory", "chat-adapter-state-redis", "chat-adapter-state-pg", "pytest>=8.3", "pytest-asyncio>=0.24", "respx>=0.21"]
+
+[project.urls]
+Homepage = "https://github.com/desplega-ai/chat-py"
+Repository = "https://github.com/desplega-ai/chat-py"
+Issues = "https://github.com/desplega-ai/chat-py/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chat_integration_tests"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests", "src"]
