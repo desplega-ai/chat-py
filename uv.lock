@@ -448,6 +448,8 @@ source = { editable = "packages/chat-adapter-slack" }
 dependencies = [
     { name = "chat" },
     { name = "chat-adapter-shared" },
+    { name = "cryptography" },
+    { name = "httpx" },
     { name = "slack-sdk" },
 ]
 
@@ -455,6 +457,8 @@ dependencies = [
 requires-dist = [
     { name = "chat", editable = "packages/chat" },
     { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "cryptography", specifier = ">=43.0" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "slack-sdk", specifier = ">=3.26" },
 ]
 
