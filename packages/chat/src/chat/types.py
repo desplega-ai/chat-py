@@ -360,6 +360,90 @@ class MessageData:
 
 
 # ============================================================================
+# Concurrency — Lock and QueueEntry
+# ============================================================================
+
+
+@dataclass(slots=True)
+class Lock:
+    """A distributed lock on a thread (or channel) held by a single handler."""
+
+    thread_id: str
+    token: str
+    expires_at: int
+    """Expiry time as Unix milliseconds — matches upstream ``Date.now()`` semantics."""
+
+
+@dataclass(slots=True)
+class QueueEntry:
+    """An entry in the per-thread message queue.
+
+    Used by the ``queue`` and ``debounce`` concurrency strategies.
+    """
+
+    enqueued_at: int
+    """When this entry was enqueued (Unix ms)."""
+
+    expires_at: int
+    """When this entry expires (Unix ms). Stale entries are discarded on dequeue."""
+
+    message: Any
+    """The queued :class:`chat.message.Message`. Typed ``Any`` to avoid circular import."""
+
+
+# ============================================================================
+# State Adapter — pluggable persistence for subscriptions, locks, and state
+# ============================================================================
+
+
+class AppendToListOptions(TypedDict, total=False):
+    """Options for :meth:`StateAdapter.append_to_list`."""
+
+    maxLength: int
+    ttlMs: int
+
+
+@runtime_checkable
+class StateAdapter(Protocol):
+    """Pluggable state backend — subscriptions, locks, key-value cache, queues, lists.
+
+    All methods are async to match upstream. Implementations live in
+    ``chat-adapter-state-memory`` / ``chat-adapter-state-redis`` / etc.
+    """
+
+    async def connect(self) -> None: ...
+    async def disconnect(self) -> None: ...
+
+    # Subscriptions
+    async def subscribe(self, thread_id: str) -> None: ...
+    async def unsubscribe(self, thread_id: str) -> None: ...
+    async def is_subscribed(self, thread_id: str) -> bool: ...
+
+    # Locks
+    async def acquire_lock(self, thread_id: str, ttl_ms: int) -> Lock | None: ...
+    async def release_lock(self, lock: Lock) -> None: ...
+    async def force_release_lock(self, thread_id: str) -> None: ...
+    async def extend_lock(self, lock: Lock, ttl_ms: int) -> bool: ...
+
+    # Key-value cache
+    async def get(self, key: str) -> Any: ...
+    async def set(self, key: str, value: Any, ttl_ms: int | None = None) -> None: ...
+    async def set_if_not_exists(self, key: str, value: Any, ttl_ms: int | None = None) -> bool: ...
+    async def delete(self, key: str) -> None: ...
+
+    # Lists
+    async def append_to_list(
+        self, key: str, value: Any, options: AppendToListOptions | None = None
+    ) -> None: ...
+    async def get_list(self, key: str) -> list[Any]: ...
+
+    # Queues
+    async def enqueue(self, thread_id: str, entry: QueueEntry, max_size: int) -> int: ...
+    async def dequeue(self, thread_id: str) -> QueueEntry | None: ...
+    async def queue_depth(self, thread_id: str) -> int: ...
+
+
+# ============================================================================
 # Placeholder buckets for remaining ``types.ts`` types
 #
 # These are filled in as their consuming modules are ported. Aliased to
@@ -373,7 +457,6 @@ Channel = Any
 ChannelInfo = Any
 ChatConfig = Any
 ChatInstance = Any
-Lock = Any
 LockScope = Literal["thread", "channel"]
 Postable = Any
 PostableAst = Any
@@ -382,7 +465,6 @@ PostableMarkdown = Any
 PostableMessage = Any
 PostableRaw = Any
 RawMessage = Any
-StateAdapter = Any
 Thread = Any
 ThreadInfo = Any
 ThreadSummary = Any
