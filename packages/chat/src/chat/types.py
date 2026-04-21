@@ -560,6 +560,39 @@ into a clean union.
 
 
 # ============================================================================
+# Stream chunks — structured events a stream can yield to ``thread.post``
+# ============================================================================
+
+
+class MarkdownTextChunk(TypedDict):
+    """Markdown text chunk — yielded by streaming renderers."""
+
+    type: Literal["markdown_text"]
+    text: str
+
+
+class TaskUpdateChunk(TypedDict, total=False):
+    """Tool/step progress card — ``pending → in_progress → complete → error``."""
+
+    type: Required[Literal["task_update"]]
+    id: Required[str]
+    title: Required[str]
+    status: Required[Literal["pending", "in_progress", "complete", "error"]]
+    output: str
+
+
+class PlanUpdateChunk(TypedDict):
+    """Plan title update."""
+
+    type: Literal["plan_update"]
+    title: str
+
+
+StreamChunk = MarkdownTextChunk | TaskUpdateChunk | PlanUpdateChunk
+"""Structured chunk type — adapters without native support extract ``text`` from markdown chunks."""
+
+
+# ============================================================================
 # Sent / Ephemeral / Scheduled messages
 # ============================================================================
 
