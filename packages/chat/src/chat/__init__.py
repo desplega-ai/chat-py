@@ -6,12 +6,16 @@ from chat.errors import (
     NotImplementedError,
     RateLimitError,
 )
+from chat.logger import ConsoleLogger, Logger, LogLevel
 
 __version__ = "0.1.0"
 
 __all__ = [
     "ChatError",
+    "ConsoleLogger",
     "LockError",
+    "LogLevel",
+    "Logger",
     "NotImplementedError",
     "RateLimitError",
     "__version__",
