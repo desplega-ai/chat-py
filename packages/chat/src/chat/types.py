@@ -11,10 +11,16 @@ readable.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import (
     Any,
     Literal,
+    NotRequired,
     Protocol,
+    Required,
+    TypedDict,
     runtime_checkable,
 )
 
@@ -193,23 +199,182 @@ class EmojiValue(Protocol):
     def __str__(self) -> str: ...
 
 
-# Placeholder buckets for the rest of the upstream ``types.ts`` file. These
-# will be filled in as modules that need them are ported. Exposing them as
-# ``Any`` means downstream code can still annotate against the names without
-# the type-checker blowing up on missing definitions.
+# ============================================================================
+# Message building blocks (ported from ``types.ts``)
+# ============================================================================
+
+
+FormattedContent = dict[str, Any]
+"""Formatted message content — an mdast ``Root`` dict. Canonical form for message formatting.
+
+Alias kept loose (``dict[str, Any]``) to avoid a circular import with
+:mod:`chat.markdown`, which owns the structural ``MdastRoot`` alias.
+"""
+
+
+@dataclass(slots=True)
+class Author:
+    """Author of a chat message.
+
+    ``is_bot`` may be ``True``/``False`` or the literal string ``"unknown"``
+    when the adapter can't determine bot status.
+    """
+
+    user_id: str
+    user_name: str
+    full_name: str
+    is_bot: bool | Literal["unknown"]
+    is_me: bool
+
+
+@dataclass(slots=True)
+class MessageMetadata:
+    """When-and-how metadata for a chat message."""
+
+    date_sent: datetime
+    edited: bool
+    edited_at: datetime | None = None
+
+
+AttachmentType = Literal["image", "file", "video", "audio"]
+
+
+@dataclass(slots=True)
+class Attachment:
+    """A message attachment — image, file, video, or audio.
+
+    ``data`` / ``fetch_data`` are runtime-only: they are stripped during
+    :meth:`chat.message.Message.to_json`.
+    """
+
+    type: AttachmentType
+    url: str | None = None
+    name: str | None = None
+    mime_type: str | None = None
+    size: int | None = None
+    width: int | None = None
+    height: int | None = None
+    data: bytes | None = None
+    fetch_data: Callable[[], Awaitable[bytes]] | None = None
+
+
+@dataclass(slots=True)
+class LinkPreview:
+    """A link found in a message, with optional unfurl metadata."""
+
+    url: str
+    title: str | None = None
+    description: str | None = None
+    image_url: str | None = None
+    site_name: str | None = None
+    fetch_message: Callable[[], Awaitable[Any]] | None = None
+    """Callback returning the upstream :class:`chat.message.Message`, when the
+    link points to another chat message on the same platform. Typed as
+    ``Any`` to avoid a circular import.
+    """
+
+
+# ============================================================================
+# Serialized message payloads — camelCase to match upstream JSON wire format
+# ============================================================================
+
+
+class SerializedAuthor(TypedDict):
+    """JSON shape for :class:`Author`. Keys are camelCase to match upstream wire format."""
+
+    userId: str
+    userName: str
+    fullName: str
+    isBot: bool | Literal["unknown"]
+    isMe: bool
+
+
+class SerializedMetadata(TypedDict):
+    """JSON shape for :class:`MessageMetadata`. Dates are ISO-8601 strings."""
+
+    dateSent: str
+    edited: bool
+    editedAt: NotRequired[str | None]
+
+
+class SerializedAttachment(TypedDict, total=False):
+    """JSON shape for :class:`Attachment`. ``data``/``fetchData`` are omitted."""
+
+    type: Required[AttachmentType]
+    url: str | None
+    name: str | None
+    mimeType: str | None
+    size: int | None
+    width: int | None
+    height: int | None
+
+
+class SerializedLinkPreview(TypedDict, total=False):
+    """JSON shape for :class:`LinkPreview`. ``fetch_message`` is omitted."""
+
+    url: Required[str]
+    title: str | None
+    description: str | None
+    imageUrl: str | None
+    siteName: str | None
+
+
+class SerializedMessage(TypedDict, total=False):
+    """JSON shape for :class:`chat.message.Message`. Keys are camelCase."""
+
+    _type: Required[Literal["chat:Message"]]
+    id: Required[str]
+    threadId: Required[str]
+    text: Required[str]
+    formatted: Required[FormattedContent]
+    raw: Any
+    author: Required[SerializedAuthor]
+    metadata: Required[SerializedMetadata]
+    attachments: Required[list[SerializedAttachment]]
+    isMention: NotRequired[bool | None]
+    links: NotRequired[list[SerializedLinkPreview] | None]
+
+
+# ============================================================================
+# MessageData — constructor input for :class:`chat.message.Message`
+# ============================================================================
+
+
+@dataclass(slots=True)
+class MessageData:
+    """Constructor input for :class:`chat.message.Message`.
+
+    Mirrors upstream ``MessageData<TRawMessage>`` — raw is ``Any`` in Python.
+    """
+
+    id: str
+    thread_id: str
+    text: str
+    formatted: FormattedContent
+    raw: Any
+    author: Author
+    metadata: MessageMetadata
+    attachments: list[Attachment] = field(default_factory=list)
+    is_mention: bool | None = None
+    links: list[LinkPreview] = field(default_factory=list)
+
+
+# ============================================================================
+# Placeholder buckets for remaining ``types.ts`` types
+#
+# These are filled in as their consuming modules are ported. Aliased to
+# ``Any`` so downstream code can annotate against names without mypy blowing
+# up on missing definitions.
+# ============================================================================
+
 Adapter = Any
 AdapterPostableMessage = Any
-Attachment = Any
-Author = Any
 Channel = Any
 ChannelInfo = Any
 ChatConfig = Any
 ChatInstance = Any
-FormattedContent = Any
-LinkPreview = Any
 Lock = Any
 LockScope = Literal["thread", "channel"]
-MessageMetadata = Any
 Postable = Any
 PostableAst = Any
 PostableCard = Any
