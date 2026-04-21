@@ -80,6 +80,10 @@ Card(title="Order", children=[
 
 The names, props, and card output are identical.
 
+### Slack adapter — email autolinks
+
+Upstream's markdown parser (`remark-gfm`) auto-links bare email addresses in markdown input, so `{markdown: "Contact user@example.com"}` becomes `"Contact <mailto:user@example.com|user@example.com>"`. Our `mistune`-based parser does not auto-link emails, so the email passes through untouched (`"Contact user@example.com"`). The security-critical invariant is identical: bare ``@word`` inside an email is NOT rewritten as a Slack mention.
+
 ### Teams adapter
 
 The TypeScript adapter uses `@microsoft/teams.api` / `@microsoft/teams.apps` (Microsoft's Teams v2 SDK). The Python Teams v2 SDK is not stable, so `chat-adapter-teams` talks to the Bot Framework REST API directly via `httpx` + `msal` for authentication. Behavioral parity is preserved; only the transport differs.
