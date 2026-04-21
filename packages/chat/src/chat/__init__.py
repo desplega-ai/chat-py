@@ -17,6 +17,13 @@ from chat.errors import (
     RateLimitError,
 )
 from chat.logger import ConsoleLogger, Logger, LogLevel
+from chat.postable_object import (
+    POSTABLE_OBJECT,
+    PostableObject,
+    PostableObjectContext,
+    is_postable_object,
+    post_postable_object,
+)
 from chat.types import (
     THREAD_STATE_TTL_MS,
     ChannelVisibility,
@@ -28,6 +35,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "DEFAULT_EMOJI_MAP",
+    "POSTABLE_OBJECT",
     "THREAD_STATE_TTL_MS",
     "ChannelVisibility",
     "ChatError",
@@ -39,6 +47,8 @@ __all__ = [
     "LogLevel",
     "Logger",
     "NotImplementedError",
+    "PostableObject",
+    "PostableObjectContext",
     "RateLimitError",
     "WellKnownEmoji",
     "__version__",
@@ -47,4 +57,6 @@ __all__ = [
     "default_emoji_resolver",
     "emoji",
     "get_emoji",
+    "is_postable_object",
+    "post_postable_object",
 ]
