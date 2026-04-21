@@ -28,6 +28,10 @@ from typing import (
 # Channel Visibility
 # ============================================================================
 
+FetchDirection = Literal["backward", "forward"]
+"""Pagination direction for :class:`Adapter` ``fetch_messages`` / ``fetch_channel_messages``."""
+
+
 ChannelVisibility = Literal["private", "workspace", "external", "unknown"]
 """Visibility scope of a channel.
 
@@ -444,6 +448,158 @@ class StateAdapter(Protocol):
 
 
 # ============================================================================
+# Channel metadata / thread summary / pagination (ported from ``types.ts``)
+# ============================================================================
+
+
+class ChannelInfo(TypedDict, total=False):
+    """Channel metadata returned by :meth:`Adapter.fetch_channel_info`.
+
+    Keys use camelCase to match the upstream wire shape (``isDM``,
+    ``memberCount``, etc.).
+    """
+
+    id: Required[str]
+    isDM: bool
+    memberCount: int
+    metadata: Required[dict[str, Any]]
+    name: str
+    channelVisibility: ChannelVisibility
+
+
+class ThreadSummary(TypedDict, total=False):
+    """Lightweight summary of a thread within a channel."""
+
+    id: Required[str]
+    lastReplyAt: datetime
+    replyCount: int
+    rootMessage: Required[Any]
+    """The :class:`chat.message.Message` — typed ``Any`` to avoid circular import."""
+
+
+class ListThreadsOptions(TypedDict, total=False):
+    """Options for :meth:`Adapter.list_threads`."""
+
+    cursor: str
+    limit: int
+
+
+class ListThreadsResult(TypedDict, total=False):
+    """Result of :meth:`Adapter.list_threads`."""
+
+    nextCursor: str | None
+    threads: Required[list[ThreadSummary]]
+
+
+class FetchOptions(TypedDict, total=False):
+    """Options for :meth:`Adapter.fetch_messages` / ``fetch_channel_messages``."""
+
+    cursor: str
+    direction: FetchDirection
+    limit: int
+
+
+class FetchResult(TypedDict, total=False):
+    """Result of :meth:`Adapter.fetch_messages`."""
+
+    messages: Required[list[Any]]
+    """Messages in chronological order (oldest first within this page)."""
+    nextCursor: str | None
+
+
+# ============================================================================
+# Raw / Postable message shapes
+# ============================================================================
+
+
+class RawMessage(TypedDict, total=False):
+    """Raw message returned from adapter ``post_message`` / ``edit_message``."""
+
+    id: Required[str]
+    raw: Any
+    threadId: str | None
+
+
+class PostableRaw(TypedDict, total=False):
+    """Raw-text postable: :attr:`raw` bypasses platform formatting."""
+
+    raw: Required[str]
+    attachments: list[Attachment | dict[str, Any]]
+    files: list[Any]
+
+
+class PostableMarkdown(TypedDict, total=False):
+    """Markdown postable — converted to platform format."""
+
+    markdown: Required[str]
+    attachments: list[Attachment | dict[str, Any]]
+    files: list[Any]
+
+
+class PostableAst(TypedDict, total=False):
+    """mdast AST postable — converted to platform format."""
+
+    ast: Required[FormattedContent]
+    attachments: list[Attachment | dict[str, Any]]
+    files: list[Any]
+
+
+AdapterPostableMessage = str | PostableRaw | PostableMarkdown | PostableAst | dict[str, Any]
+"""Postable message accepted by adapter-level ``post_message``.
+
+Excludes streams — the adapter handles content synchronously. Card / JSX
+variants are part B of the port.
+"""
+
+PostableMessage = AdapterPostableMessage | Any
+"""Postable at the :class:`Thread` / :class:`Channel` level — includes
+streams and :class:`chat.postable_object.PostableObject`. Loosely typed as
+``Any`` because ``AsyncIterable[str]`` and ``PostableObject`` don't flatten
+into a clean union.
+"""
+
+
+# ============================================================================
+# Sent / Ephemeral / Scheduled messages
+# ============================================================================
+
+
+class PostEphemeralOptions(TypedDict):
+    """Options for :meth:`Channel.post_ephemeral` / :meth:`Thread.post_ephemeral`."""
+
+    fallbackToDM: bool
+
+
+@dataclass(slots=True)
+class EphemeralMessage:
+    """Result of posting an ephemeral message.
+
+    Ephemeral messages are visible only to a specific user and typically
+    cannot be edited or deleted.
+    """
+
+    id: str
+    thread_id: str
+    used_fallback: bool
+    raw: Any
+
+
+@dataclass(slots=True)
+class ScheduledMessage:
+    """Result of scheduling a message for future delivery.
+
+    Only supported by adapters with native scheduling APIs (e.g., Slack).
+    """
+
+    scheduled_message_id: str
+    channel_id: str
+    post_at: datetime
+    raw: Any
+    cancel: Callable[[], Awaitable[None]]
+    """Cancel the scheduled message before it's sent."""
+
+
+# ============================================================================
 # Placeholder buckets for remaining ``types.ts`` types
 #
 # These are filled in as their consuming modules are ported. Aliased to
@@ -452,22 +608,14 @@ class StateAdapter(Protocol):
 # ============================================================================
 
 Adapter = Any
-AdapterPostableMessage = Any
 Channel = Any
-ChannelInfo = Any
 ChatConfig = Any
 ChatInstance = Any
 LockScope = Literal["thread", "channel"]
 Postable = Any
-PostableAst = Any
 PostableCard = Any
-PostableMarkdown = Any
-PostableMessage = Any
-PostableRaw = Any
-RawMessage = Any
 Thread = Any
 ThreadInfo = Any
-ThreadSummary = Any
 
 
 # ============================================================================
