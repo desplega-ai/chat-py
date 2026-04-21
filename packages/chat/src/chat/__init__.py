@@ -82,6 +82,7 @@ from chat.postable_object import (
     is_postable_object,
     post_postable_object,
 )
+from chat.thread import SerializedThread, ThreadImpl
 from chat.types import (
     THREAD_STATE_TTL_MS,
     AdapterPostableMessage,
@@ -180,8 +181,10 @@ __all__ = [
     "SerializedLinkPreview",
     "SerializedMessage",
     "SerializedMetadata",
+    "SerializedThread",
     "StateAdapter",
     "StringifyOptions",
+    "ThreadImpl",
     "ThreadSummary",
     "WellKnownEmoji",
     "__version__",

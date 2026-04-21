@@ -140,6 +140,7 @@ class SentMessage:
         "author",
         "formatted",
         "id",
+        "is_mention",
         "links",
         "metadata",
         "raw",
@@ -159,6 +160,7 @@ class SentMessage:
         metadata: MessageMetadata,
         attachments: list[Attachment],
         links: list[Any] | None = None,
+        is_mention: bool | None = None,
         channel: ChannelImpl[Any],
     ) -> None:
         self.id = id
@@ -170,6 +172,7 @@ class SentMessage:
         self.metadata = metadata
         self.attachments = attachments
         self.links = links or []
+        self.is_mention = is_mention
         self._channel = channel
 
     def to_json(self) -> Any:
@@ -183,6 +186,7 @@ class SentMessage:
             metadata=self.metadata,
             attachments=self.attachments,
             links=self.links,
+            is_mention=self.is_mention,
         ).to_json()
 
     async def edit(self, new_content: Any) -> SentMessage:
