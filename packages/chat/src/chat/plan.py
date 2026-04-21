@@ -250,7 +250,7 @@ class Plan:
                 if update.get("status"):
                     current.status = update["status"]
             else:
-                current.output = update  # type: ignore[assignment]
+                current.output = update
 
         await self._enqueue_edit()
         return PlanTask(id=current.id, title=current.title, status=current.status)
