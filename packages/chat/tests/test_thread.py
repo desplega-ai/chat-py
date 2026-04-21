@@ -690,13 +690,55 @@ class TestStreaming:
         mock_adapter.post_message = AsyncMock(
             return_value={"id": "msg-1", "threadId": thread.id, "raw": {}}
         )
+        mock_adapter.edit_message = AsyncMock(
+            return_value={"id": "msg-1", "threadId": thread.id, "raw": {}}
+        )
 
         async def gen() -> Any:
             yield "Hello"
             yield " world"
 
         sent = await thread.post(gen())
-        mock_adapter.post_message.assert_called_with(thread.id, {"markdown": "Hello world"})
+        # Placeholder "..." is posted first.
+        mock_adapter.post_message.assert_called_once_with(thread.id, "...")
+        # Final edit carries the full accumulated text.
+        mock_adapter.edit_message.assert_called_with(
+            thread.id, "msg-1", {"markdown": "Hello world"}
+        )
+        assert sent.text == "Hello world"
+
+    async def test_fallback_stream_no_placeholder_posts_first_chunk(
+        self, mock_adapter: Any, mock_state: Any
+    ) -> None:
+        if hasattr(mock_adapter, "stream"):
+            delattr(mock_adapter, "stream")
+        mock_adapter.post_message = AsyncMock(
+            return_value={"id": "msg-1", "threadId": "slack:C123:1234.5678", "raw": {}}
+        )
+        mock_adapter.edit_message = AsyncMock(
+            return_value={"id": "msg-1", "threadId": "slack:C123:1234.5678", "raw": {}}
+        )
+
+        thread = ThreadImpl(
+            id="slack:C123:1234.5678",
+            channel_id="slack:C123",
+            adapter=mock_adapter,
+            adapter_name="slack",
+            state_adapter=mock_state,
+            channel_visibility="workspace",
+            fallback_streaming_placeholder_text=None,
+        )
+
+        async def gen() -> Any:
+            yield "Hello"
+            yield " world"
+
+        sent = await thread.post(gen())
+        # First post carries the first rendered chunk, not a placeholder.
+        first_call = mock_adapter.post_message.call_args_list[0]
+        assert first_call[0][0] == thread.id
+        assert isinstance(first_call[0][1], dict)
+        assert "markdown" in first_call[0][1]
         assert sent.text == "Hello world"
 
 

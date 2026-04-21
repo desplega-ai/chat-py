@@ -5,16 +5,15 @@ supports posting messages, iterating thread messages, subscribing /
 unsubscribing, managing per-thread state, and serializing to JSON for
 workflow engines.
 
-JSX/Card handling, full AI-SDK-style stream normalization (``fromFullStream``),
-and ``StreamingMarkdownRenderer`` live in part B of the port. Streaming in
-this module is intentionally simplified: native :meth:`Adapter.stream`
-support is used when available, otherwise chunks are accumulated and posted
-as a single message at stream end.
+Streaming uses :func:`~chat.from_full_stream.from_full_stream` for AI-SDK
+normalization and :class:`~chat.streaming_markdown.StreamingMarkdownRenderer`
+for throttled post→edit cycling when the adapter lacks native stream support.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable
+import asyncio
+from collections.abc import AsyncIterable, AsyncIterator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
@@ -26,8 +25,10 @@ from chat.channel import (
     derive_channel_id,
 )
 from chat.errors import NotImplementedError as ChatNotImplementedError
+from chat.from_full_stream import from_full_stream
 from chat.message import Message
 from chat.postable_object import is_postable_object, post_postable_object
+from chat.streaming_markdown import StreamingMarkdownRenderer
 from chat.types import (
     THREAD_STATE_TTL_MS,
     AdapterPostableMessage,
@@ -370,9 +371,9 @@ class ThreadImpl[TState]:
     async def _handle_stream(self, raw_stream: AsyncIterable[Any]) -> SentMessage:
         """Handle an async-iterable stream.
 
-        Uses :meth:`Adapter.stream` when available. Otherwise falls back to
-        accumulate-then-post. (Full AI-SDK stream normalization and
-        post+edit throttling are part B.)
+        Normalizes the raw stream through :func:`from_full_stream`, then
+        delegates to the adapter's native ``stream`` method when available or
+        the throttled post→edit fallback otherwise.
         """
         options: dict[str, Any] = {}
         if self._current_message is not None:
@@ -383,17 +384,21 @@ class ThreadImpl[TState]:
                 if team_id is not None:
                     options["recipientTeamId"] = team_id
 
+        text_stream = from_full_stream(raw_stream)
+
         adapter_stream = getattr(self.adapter, "stream", None)
         if adapter_stream is not None:
             accumulated = ""
 
-            async def _wrapped() -> AsyncIterable[Any]:
+            async def _wrapped() -> AsyncIterator[Any]:
                 nonlocal accumulated
-                async for chunk in raw_stream:
+                async for chunk in text_stream:
                     if isinstance(chunk, str):
                         accumulated += chunk
                     elif isinstance(chunk, dict) and chunk.get("type") == "markdown_text":
-                        accumulated += chunk.get("text", "")
+                        text = chunk.get("text", "")
+                        if isinstance(text, str):
+                            accumulated += text
                     yield chunk
 
             raw = await adapter_stream(self.id, _wrapped(), options)
@@ -410,34 +415,103 @@ class ThreadImpl[TState]:
 
             return sent
 
-        return await self._fallback_stream(raw_stream, options)
+        async def _text_only() -> AsyncIterator[str]:
+            async for chunk in text_stream:
+                if isinstance(chunk, str):
+                    yield chunk
+                elif isinstance(chunk, dict) and chunk.get("type") == "markdown_text":
+                    text = chunk.get("text", "")
+                    if isinstance(text, str):
+                        yield text
+
+        return await self._fallback_stream(_text_only(), options)
 
     async def _fallback_stream(
         self,
-        stream: AsyncIterable[Any],
+        stream: AsyncIterable[str],
         options: dict[str, Any] | None = None,
     ) -> SentMessage:
-        """Fallback streaming: accumulate text, post once at end.
+        """Post+edit streaming fallback with throttled intermediate edits.
 
-        The upstream implementation uses a post-then-edit-on-interval pattern.
-        That complexity (``StreamingMarkdownRenderer`` + throttled edits)
-        lives in part B; here we accumulate and post a single message so the
-        public ``post(stream)`` contract works for adapters without native
-        ``stream`` support.
+        Posts an initial placeholder (or the first rendered chunk if
+        ``fallback_streaming_placeholder_text`` is ``None``), then edits the
+        message at ``streaming_update_interval_ms`` cadence as new text
+        arrives. On stream completion, flushes the final rendered content.
         """
-        accumulated = ""
-        async for chunk in stream:
-            if isinstance(chunk, str):
-                accumulated += chunk
-            elif isinstance(chunk, dict) and chunk.get("type") == "markdown_text":
-                accumulated += chunk.get("text", "")
+        interval_ms = (options or {}).get("updateIntervalMs") or self._streaming_update_interval_ms
+        interval_s = interval_ms / 1000.0
+        placeholder_text = self._fallback_streaming_placeholder_text
 
-        content = accumulated if accumulated.strip() else " "
-        raw_message = await self.adapter.post_message(self.id, {"markdown": content})
+        renderer = StreamingMarkdownRenderer()
+        msg: dict[str, Any] | None = None
+        thread_id_for_edits = self.id
+        last_edit_content = ""
+
+        if placeholder_text is not None:
+            msg = await self.adapter.post_message(self.id, placeholder_text)
+            thread_id_for_edits = msg.get("threadId") or self.id
+            last_edit_content = placeholder_text
+
+        stopped = asyncio.Event()
+
+        async def _edit_loop() -> None:
+            while not stopped.is_set():
+                try:
+                    await asyncio.wait_for(stopped.wait(), timeout=interval_s)
+                    return
+                except TimeoutError:
+                    pass
+                if msg is None:
+                    continue
+                content = renderer.render()
+                nonlocal last_edit_content
+                if content.strip() and content != last_edit_content:
+                    try:
+                        await self.adapter.edit_message(
+                            thread_id_for_edits, msg["id"], {"markdown": content}
+                        )
+                        last_edit_content = content
+                    except Exception as exc:
+                        if self._logger is not None:
+                            self._logger.warn("fallbackStream edit failed", exc)
+
+        editor_task: asyncio.Task[None] | None = None
+        if msg is not None:
+            editor_task = asyncio.create_task(_edit_loop())
+
+        try:
+            async for chunk in stream:
+                renderer.push(chunk)
+                if msg is None:
+                    content = renderer.render()
+                    if content.strip():
+                        msg = await self.adapter.post_message(self.id, {"markdown": content})
+                        thread_id_for_edits = msg.get("threadId") or self.id
+                        last_edit_content = content
+                        editor_task = asyncio.create_task(_edit_loop())
+        finally:
+            stopped.set()
+            if editor_task is not None:
+                await editor_task
+
+        accumulated = renderer.get_text()
+        final_content = renderer.finish()
+
+        if msg is None:
+            content = accumulated if accumulated.strip() else " "
+            msg = await self.adapter.post_message(self.id, {"markdown": content})
+            thread_id_for_edits = msg.get("threadId") or self.id
+            last_edit_content = accumulated
+
+        if final_content.strip() and final_content != last_edit_content:
+            await self.adapter.edit_message(
+                thread_id_for_edits, msg["id"], {"markdown": accumulated}
+            )
+
         sent = self._create_sent_message(
-            raw_message["id"],
+            msg["id"],
             {"markdown": accumulated},
-            raw_message.get("threadId"),
+            thread_id_for_edits,
         )
 
         if self._message_history is not None:
