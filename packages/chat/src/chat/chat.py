@@ -1082,8 +1082,11 @@ class Chat:
                     "Another instance may be processing."
                 )
 
+        # State adapters may return either a ``Lock`` dataclass or a dict — we
+        # accept both to keep the memory/redis/pg/ioredis backends pluggable.
+        lock_token = lock["token"] if isinstance(lock, dict) else lock.token
         self._logger.debug(
-            "Lock acquired", {"threadId": thread_id, "lockKey": lock_key, "token": lock.token}
+            "Lock acquired", {"threadId": thread_id, "lockKey": lock_key, "token": lock_token}
         )
         try:
             await self._dispatch_to_handlers(adapter, thread_id, message)
