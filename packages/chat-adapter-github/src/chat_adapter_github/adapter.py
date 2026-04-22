@@ -169,6 +169,8 @@ class GitHubAdapter:
     """
 
     name = "github"
+    lock_scope: Literal["thread", "channel"] | None = "thread"
+    persist_message_history: bool = False
 
     def __init__(self, config: GitHubAdapterConfig | None = None) -> None:
         cfg: dict[str, Any] = dict(config or {})
@@ -309,6 +311,88 @@ class GitHubAdapter:
             await self._http_client.aclose()
             self._http_client = None
 
+    async def disconnect(self) -> None:
+        """Release the HTTP client if one was built. Alias for :meth:`close`."""
+
+        await self.close()
+
+    # ------------------------------------------------------------------
+    # Subscriptions / DM / modals
+    #
+    # GitHub has no native per-thread subscription surface (subscription is
+    # tracked in chat state), no DM concept (issues/PRs are always tied to a
+    # repo), and no modal-style interactive flow. The three methods below exist
+    # only to satisfy the :class:`chat.types.Adapter` Protocol — parity-documented
+    # in ``docs/parity.md`` under "Deliberate NotImplementedError stubs".
+    # ------------------------------------------------------------------
+
+    async def subscribe(self, thread_id: str) -> None:
+        """No-op — GitHub subscription is tracked at the `Chat` state layer."""
+
+        return None
+
+    async def unsubscribe(self, thread_id: str) -> None:
+        """No-op — mirrors :meth:`subscribe`."""
+
+        return None
+
+    async def open_dm(self, user_id: str) -> str:
+        """GitHub has no DM surface (issues/PRs are always repo-scoped)."""
+
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "GitHub has no direct-message surface; issues and PRs are always "
+            "scoped to a repository.",
+            feature="open_dm",
+        )
+
+    async def open_modal(self, trigger_id: str, view: Any) -> Any:
+        """GitHub has no modal surface."""
+
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "GitHub has no modal surface; use issue comments or PR review "
+            "comments for interactive flows.",
+            feature="open_modal",
+        )
+
+    # ------------------------------------------------------------------
+    # Channel-level messaging
+    # ------------------------------------------------------------------
+
+    async def post_channel_message(self, channel_id: str, message: Any) -> Any:
+        """GitHub has no channel-level posting surface.
+
+        Messages are scoped to an issue or PR (a thread), never to the
+        repository ("channel") as a whole. Satisfies the Adapter Protocol;
+        documented in ``docs/parity.md``.
+        """
+
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "GitHub has no channel-level post surface; use post_message on "
+            "an issue or PR thread instead.",
+            feature="post_channel_message",
+        )
+
+    async def fetch_channel_messages(self, channel_id: str, options: Any = None) -> Any:
+        """GitHub has no flat channel-message stream.
+
+        Comments belong to individual issues / PRs (threads). Satisfies the
+        Adapter Protocol; documented in ``docs/parity.md``.
+        """
+
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "GitHub has no channel-level message stream; use fetch_messages "
+            "on an issue or PR thread instead.",
+            feature="fetch_channel_messages",
+        )
+
     # ------------------------------------------------------------------
     # Thread ID helpers (delegate to module-level functions)
     # ------------------------------------------------------------------
@@ -321,6 +405,19 @@ class GitHubAdapter:
 
     def channel_id_from_thread_id(self, thread_id: str) -> str:
         return channel_id_from_thread_id(thread_id)
+
+    def is_dm(self, thread_id: str) -> bool:
+        """GitHub has no DM surface — always ``False``."""
+
+        return False
+
+    def get_channel_visibility(self, channel_id: str) -> str:
+        """GitHub repos are public or private per repo; we can't tell from the
+        channel-ID alone (would require a REST call), so return ``"unknown"``
+        to mirror the Discord / GChat adapters' treatment.
+        """
+
+        return "unknown"
 
     # ------------------------------------------------------------------
     # Installation management

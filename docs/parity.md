@@ -127,6 +127,11 @@ These methods are declared on the adapter but raise `chat.errors.NotImplementedE
   - `open_modal` — Discord has no standalone modal-open surface; modals are delivered as responses to an interaction (`APPLICATION_MODAL`). Upstream does not wire `open_modal` for Discord either; we raise `chat.NotImplementedError(feature="modals")` to satisfy the Protocol.
 - **`chat-adapter-gchat`** — 1 site in `packages/chat-adapter-gchat/src/chat_adapter_gchat/adapter.py` (approx. `:1115`):
   - `open_modal` — Google Chat has no Slack-style modal; use a Card v2 response instead. Raises `chat.NotImplementedError(feature="modals")` to satisfy the Protocol.
+- **`chat-adapter-github`** — 4 sites in `packages/chat-adapter-github/src/chat_adapter_github/adapter.py`:
+  - `open_dm` — GitHub has no DM surface; issues and PRs are always repo-scoped. Raises `chat.NotImplementedError(feature="open_dm")`.
+  - `open_modal` — GitHub has no modal surface; use issue comments or PR review comments for interactive flows. Raises `chat.NotImplementedError(feature="open_modal")`.
+  - `post_channel_message` — GitHub has no channel-level post surface; messages are always thread-scoped (issue or PR). Raises `chat.NotImplementedError(feature="post_channel_message")`.
+  - `fetch_channel_messages` — GitHub has no flat channel-message stream; comments belong to individual issues/PRs. Raises `chat.NotImplementedError(feature="fetch_channel_messages")`.
 - **`chat-adapter-teams`** — 7 sites in `packages/chat-adapter-teams/src/chat_adapter_teams/adapter.py` (approx. `:444-495`):
   - `read_thread` — upstream relies on `@microsoft/teams.apps`'s live dispatch which has no stable Python equivalent.
   - Certificate-based auth (`certificate` config) — scaffolded but not wired.
