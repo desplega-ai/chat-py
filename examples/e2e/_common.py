@@ -15,7 +15,10 @@ logic. The interesting stuff lives in the per-scenario scripts.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import os
+import signal
 import sys
 from collections.abc import Iterable
 from pathlib import Path
@@ -116,3 +119,34 @@ def run_webhook_server(
         "provider's webhook config."
     )
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
+
+
+def run_socket_client(bot: Chat, adapter_name: str) -> None:
+    """Run an adapter that delivers events over a websocket (no HTTP server).
+
+    Used by Slack Socket Mode: calls :py:meth:`Chat.initialize`, which in turn
+    calls the adapter's ``initialize`` (which opens the socket), then blocks
+    until SIGINT / SIGTERM. On shutdown, disconnects the adapter cleanly.
+    """
+
+    async def _run() -> None:
+        print(f"[e2e] starting {adapter_name} in socket mode (no HTTP server).")
+        await bot.initialize()
+        print(f"[e2e] {adapter_name} connected — waiting for events (Ctrl+C to stop).")
+
+        stop = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            with contextlib.suppress(NotImplementedError):
+                loop.add_signal_handler(sig, stop.set)
+
+        try:
+            await stop.wait()
+        finally:
+            with contextlib.suppress(Exception):
+                adapter = bot.get_adapter(adapter_name)
+                if hasattr(adapter, "disconnect"):
+                    await adapter.disconnect()
+            print(f"[e2e] {adapter_name} disconnected.")
+
+    asyncio.run(_run())
