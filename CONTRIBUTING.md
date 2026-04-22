@@ -1,6 +1,6 @@
 # Contributing to chat-py
 
-Thanks for your interest. This repo is a Python port of [`vercel/chat`](https://github.com/vercel/chat) maintained by [Desplega Labs](https://desplega.ai/labs). We keep the Python API as close to upstream as Python allows.
+Thanks for your interest. This repo is a Python port of [`vercel/chat`](https://github.com/vercel/chat) maintained by [Desplega Labs](https://desplega.sh?utm_source=github_chat-py). We keep the Python API as close to upstream as Python allows.
 
 ## Ground rules
 
