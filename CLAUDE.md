@@ -28,6 +28,24 @@ Full procedure in [`docs/releasing.md`](docs/releasing.md). The short version:
 
 ## Common tasks
 
+### Manual E2E scripts (examples/e2e/)
+
+Per-adapter, per-scenario scripts for hitting real provider APIs. They are **not** pytest tests. Each script is a self-contained `uv run python` invocation with its own docstring covering:
+
+- required env vars (the script `sys.exit()`s with a clear message if any are unset)
+- provider app/bot setup (scopes, events, webhook URL)
+- run command
+
+Shape:
+
+```bash
+uv sync --group e2e                                # fastapi + uvicorn + python-dotenv
+uv run python examples/e2e/slack/echo.py           # in one terminal
+ngrok http 8000                                    # in another; paste URL into provider
+```
+
+Scripts read `<repo-root>/.env` via `python-dotenv`; `.env` is gitignored. Full how-to: [`examples/e2e/README.md`](examples/e2e/README.md). Add new scenarios by copying an existing script — shared env/FastAPI glue lives in `examples/e2e/_common.py`.
+
 ### Running the full validation suite
 
 ```bash

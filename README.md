@@ -77,6 +77,17 @@ async def slack_webhook(request: Request):
 
 See the [Getting Started guide](docs/getting-started.md) for a full walkthrough and the [`examples/`](examples/) directory for runnable projects.
 
+### Manual end-to-end tests
+
+Per-adapter scripts that boot a FastAPI webhook server and drive the real provider API live under [`examples/e2e/`](examples/e2e/) (one file per scenario). These are **not** pytest tests — they're meant for local smoke / pre-release verification. Each script's docstring lists the env vars it needs; the script exits early with a clear message if any are missing.
+
+```bash
+uv sync --group e2e                             # fastapi + uvicorn + python-dotenv
+uv run python examples/e2e/slack/echo.py        # @mention echo; set SLACK_BOT_TOKEN + SLACK_SIGNING_SECRET in .env first
+```
+
+Full instructions (including how to write new scenarios) in [`examples/e2e/README.md`](examples/e2e/README.md).
+
 ## Supported platforms
 
 | Platform          | Package                        | Status   | Mentions | Reactions | Cards | Modals | Streaming | DMs |
