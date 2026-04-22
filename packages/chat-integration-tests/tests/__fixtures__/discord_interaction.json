@@ -1,0 +1,21 @@
+{
+  "_provenance": "Synthesized Discord INTERACTION_CREATE (type=2 APPLICATION_COMMAND) for /echo slash-command. IDs synthetic. Matches packages/chat-adapter-discord/tests/test_dispatch.py. Captured for DES-196 phase 10, 2026-04.",
+  "type": 2,
+  "id": "interaction-id-1",
+  "token": "interaction-token-1",
+  "application_id": "123456789012345678",
+  "channel_id": "channel-1",
+  "guild_id": "guild-1",
+  "channel": {"id": "channel-1", "type": 0},
+  "data": {
+    "name": "echo",
+    "options": [{"name": "text", "value": "hi there"}]
+  },
+  "member": {
+    "user": {
+      "id": "user-1",
+      "username": "alice",
+      "global_name": "Alice"
+    }
+  }
+}

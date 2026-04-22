@@ -1,0 +1,10 @@
+{
+  "_provenance": "Synthesized Teams Bot Framework 'message' activity. Conversation id scrubbed (19:channel@thread.tacv2). Matches packages/chat-adapter-teams/tests/test_dispatch.py. Captured for DES-196 phase 10, 2026-04.",
+  "type": "message",
+  "id": "1234",
+  "timestamp": "2026-04-22T12:00:00Z",
+  "serviceUrl": "https://smba.trafficmanager.net/amer/",
+  "conversation": {"id": "19:channel@thread.tacv2"},
+  "from": {"id": "29:user-aad-id", "name": "Alice"},
+  "text": "@bot hello there"
+}

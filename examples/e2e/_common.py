@@ -15,11 +15,22 @@ logic. The interesting stuff lives in the per-scenario scripts.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import os
+import signal
 import sys
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+try:
+    import uvicorn
+    from fastapi import FastAPI, Request
+    from fastapi.responses import Response
+except ImportError:
+    uvicorn = None  # type: ignore[assignment]
+    FastAPI = Request = Response = None  # type: ignore[assignment,misc]
 
 if TYPE_CHECKING:
     from chat import Chat
@@ -80,22 +91,17 @@ def run_webhook_server(
     - `extra_routes` lets a scenario mount additional handlers (e.g. health
       checks, static URL-verify endpoints).
     """
-    try:
-        import uvicorn
-        from fastapi import FastAPI, Request
-    except ImportError:
+    if FastAPI is None or uvicorn is None:
         sys.exit("[e2e] fastapi / uvicorn not installed. Run `uv sync --group e2e` first.")
 
     app = FastAPI()
     webhook_route = route or f"/api/webhooks/{adapter_name}"
 
     @app.post(webhook_route)
-    async def handle(request: Request) -> Any:  # type: ignore[no-redef]
+    async def handle(request: Request) -> Any:  # type: ignore[no-redef,valid-type]
         body = await request.body()
         headers = dict(request.headers)
         status, resp_headers, resp_body = await bot.handle_webhook(adapter_name, body, headers)
-        from fastapi.responses import Response
-
         return Response(content=resp_body, status_code=status, headers=dict(resp_headers))
 
     @app.get("/health")
@@ -113,3 +119,34 @@ def run_webhook_server(
         "provider's webhook config."
     )
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
+
+
+def run_socket_client(bot: Chat, adapter_name: str) -> None:
+    """Run an adapter that delivers events over a websocket (no HTTP server).
+
+    Used by Slack Socket Mode: calls :py:meth:`Chat.initialize`, which in turn
+    calls the adapter's ``initialize`` (which opens the socket), then blocks
+    until SIGINT / SIGTERM. On shutdown, disconnects the adapter cleanly.
+    """
+
+    async def _run() -> None:
+        print(f"[e2e] starting {adapter_name} in socket mode (no HTTP server).")
+        await bot.initialize()
+        print(f"[e2e] {adapter_name} connected — waiting for events (Ctrl+C to stop).")
+
+        stop = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            with contextlib.suppress(NotImplementedError):
+                loop.add_signal_handler(sig, stop.set)
+
+        try:
+            await stop.wait()
+        finally:
+            with contextlib.suppress(Exception):
+                adapter = bot.get_adapter(adapter_name)
+                if hasattr(adapter, "disconnect"):
+                    await adapter.disconnect()
+            print(f"[e2e] {adapter_name} disconnected.")
+
+    asyncio.run(_run())

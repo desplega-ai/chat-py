@@ -297,6 +297,8 @@ class LinearAdapter:
     """
 
     name = "linear"
+    lock_scope: Any = "thread"
+    persist_message_history: bool = False
 
     def __init__(self, config: LinearAdapterConfig | None = None) -> None:
         cfg: dict[str, Any] = dict(config or {})
@@ -1139,8 +1141,12 @@ class LinearAdapter:
         )
 
     async def remove_reaction(self, _thread_id: str, _message_id: str, _emoji: Any) -> None:
-        self.logger.warn(
-            "removeReaction is not fully supported on Linear — reaction ID lookup would be required"
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "removeReaction is not supported on Linear — reaction ID lookup would be "
+            "required and upstream does not implement it either.",
+            feature="removeReaction",
         )
 
     async def start_typing(self, thread_id: str, status: str | None = None) -> None:
@@ -1260,6 +1266,83 @@ class LinearAdapter:
                 "url": issue.get("url"),
             },
         }
+
+    # ------------------------------------------------------------------
+    # Adapter Protocol — unsupported / no-op surfaces
+    # ------------------------------------------------------------------
+
+    async def disconnect(self) -> None:
+        """Tear down background resources (delegates to :meth:`close`)."""
+        await self.close()
+
+    async def subscribe(self, thread_id: str) -> None:
+        """Subscribe — no-op on Linear (subscription is implicit once the bot
+        is mentioned on an issue).
+        """
+        return None
+
+    async def unsubscribe(self, thread_id: str) -> None:
+        """Unsubscribe — no-op on Linear (same reasoning as :meth:`subscribe`)."""
+        return None
+
+    async def post_channel_message(self, channel_id: str, message: Any) -> Any:
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "postChannelMessage is not supported on Linear — comments are "
+            "always scoped to an issue thread.",
+            feature="postChannelMessage",
+        )
+
+    async def fetch_channel_info(self, channel_id: str) -> Any:
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "fetchChannelInfo is not supported on Linear — there is no flat channel surface.",
+            feature="fetchChannelInfo",
+        )
+
+    async def fetch_channel_messages(self, channel_id: str, options: Any = None) -> Any:
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "fetchChannelMessages is not supported on Linear — comments "
+            "belong to individual issues.",
+            feature="fetchChannelMessages",
+        )
+
+    async def list_threads(self, channel_id: str, options: Any = None) -> Any:
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "listThreads is not supported on Linear — threads are discovered "
+            "via issue identifiers, not a channel list.",
+            feature="listThreads",
+        )
+
+    async def open_dm(self, user_id: str) -> str:
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "openDM is not supported on Linear — there is no DM surface.",
+            feature="openDM",
+        )
+
+    async def open_modal(self, trigger_id: str, view: Any) -> Any:
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "openModal is not supported on Linear — no modal surface.",
+            feature="openModal",
+        )
+
+    def is_dm(self, thread_id: str) -> bool:
+        """Linear has no DM surface."""
+        return False
+
+    def get_channel_visibility(self, channel_id: str) -> Any:
+        """Linear workspaces are always private by organization."""
+        return "workspace"
 
     # ------------------------------------------------------------------
     # Low-level GraphQL + HTTP

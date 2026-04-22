@@ -640,7 +640,6 @@ class ScheduledMessage:
 # up on missing definitions.
 # ============================================================================
 
-Adapter = Any
 Channel = Any
 ChatConfig = Any
 ChatInstance = Any
@@ -649,6 +648,107 @@ Postable = Any
 PostableCard = Any
 Thread = Any
 ThreadInfo = Any
+
+
+# ============================================================================
+# Adapter Protocol
+#
+# Mirrors upstream ``packages/chat/src/types.ts`` ``Adapter`` interface 1:1.
+# Promoted from ``Any`` in DES-196 so ``isinstance(adapter, Adapter)`` actually
+# enforces the dispatch surface.
+# ============================================================================
+
+
+@runtime_checkable
+class Adapter(Protocol):
+    """Structural contract every platform adapter must satisfy.
+
+    Mirrors the upstream ``Adapter`` interface in ``packages/chat/src/types.ts``.
+    All attribute / method names are kept 1:1 with upstream, except async
+    methods use Python's ``async def`` and multi-word names are snake_case
+    per `CLAUDE.md`.
+    """
+
+    # -- identity / config --------------------------------------------------
+
+    name: str = ""
+    """Stable adapter name used for webhook routing (e.g. ``"slack"``)."""
+
+    lock_scope: LockScope | None = None
+    """Scope used when locking threads for dispatch (``"thread"`` or ``"channel"``)."""
+
+    persist_message_history: bool = False
+    """Whether ``Chat`` should persist message history for this adapter."""
+
+    # -- lifecycle ----------------------------------------------------------
+
+    async def initialize(self, chat: Any) -> None: ...
+
+    async def disconnect(self) -> None: ...
+
+    # -- inbound dispatch ---------------------------------------------------
+
+    async def handle_webhook(
+        self,
+        body: bytes,
+        headers: dict[str, str],
+        options: Any | None = None,
+    ) -> tuple[int, dict[str, str], bytes]: ...
+
+    # -- outbound messages --------------------------------------------------
+
+    async def post_message(self, thread_id: str, message: Any) -> Any: ...
+
+    async def edit_message(self, thread_id: str, message_id: str, message: Any) -> Any: ...
+
+    async def delete_message(self, thread_id: str, message_id: str) -> None: ...
+
+    async def add_reaction(self, thread_id: str, message_id: str, emoji: str) -> None: ...
+
+    async def remove_reaction(self, thread_id: str, message_id: str, emoji: str) -> None: ...
+
+    async def post_channel_message(self, channel_id: str, message: Any) -> Any: ...
+
+    # -- fetching / querying ------------------------------------------------
+
+    async def fetch_messages(self, thread_id: str, options: Any | None = None) -> Any: ...
+
+    async def fetch_channel_info(self, channel_id: str) -> Any: ...
+
+    async def fetch_channel_messages(self, channel_id: str, options: Any | None = None) -> Any: ...
+
+    async def list_threads(self, channel_id: str, options: Any | None = None) -> Any: ...
+
+    # -- subscription / DM / modals ----------------------------------------
+
+    async def subscribe(self, thread_id: str) -> None: ...
+
+    async def unsubscribe(self, thread_id: str) -> None: ...
+
+    async def open_dm(self, user_id: str) -> str: ...
+
+    async def open_modal(self, trigger_id: str, view: Any) -> Any: ...
+
+    async def start_typing(self, thread_id: str) -> None: ...
+
+    async def stream(
+        self,
+        thread_id: str,
+        chunks: Any,
+        options: Any | None = None,
+    ) -> Any: ...
+
+    # -- sync helpers -------------------------------------------------------
+
+    def encode_thread_id(self, *args: Any, **kwargs: Any) -> str: ...
+
+    def decode_thread_id(self, thread_id: str) -> Any: ...
+
+    def channel_id_from_thread_id(self, thread_id: str) -> str: ...
+
+    def is_dm(self, thread_id: str) -> bool: ...
+
+    def get_channel_visibility(self, channel_id: str) -> ChannelVisibility: ...
 
 
 # ============================================================================

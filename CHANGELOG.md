@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format is based on 
 
 - Documentation polish for v0 release: filled per-package READMEs, expanded CHANGELOG with known gaps (DES-192).
 
+### Changed
+
+- Adapter dispatch surface (DES-196) — Slack and GChat Part B ported (webhook + outbound message/reaction methods); `docs/parity.md` now carries a "Dispatch surface" table and enumerates every deliberate `NotImplementedError` stub; CHANGELOG now reflects reality for Telegram/WhatsApp (previously labelled "placeholder stub" — dispatch has actually been present since DES-182 / DES-183). `chat.types.Adapter` promoted from `Any` to a `@runtime_checkable` Protocol mirroring upstream `types.ts`.
+
 ## [0.1.0] — 2026-04-22
 
 Initial Python port of [`vercel/chat`](https://github.com/vercel/chat) v4.26.0. `uv`-native workspace, Python 3.13, async-first.

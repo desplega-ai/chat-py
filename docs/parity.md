@@ -100,6 +100,59 @@ Python has one first-class Redis client — `redis-py` with its `redis.asyncio` 
 
 `@workflow/serde`'s `WORKFLOW_SERIALIZE` / `WORKFLOW_DESERIALIZE` symbols become Python `__chat_serialize__` / `__chat_deserialize__` methods (mirror of `__reduce__` / `__setstate__` but scoped to this SDK's serialization path).
 
+## Dispatch surface
+
+Every adapter's `handle_webhook` + outbound message surface, as of the DES-196 port. States:
+
+- `full` — implemented and exercised by `chat-integration-tests/test_dispatch_memory.py`.
+- `stub` — declared on the adapter, raises `chat.errors.NotImplementedError` at call site (see "Deliberate NotImplementedError stubs" below).
+- `n/a (upstream limit)` — upstream TypeScript does not implement this method either; parity preserved.
+
+| adapter   | handle_webhook | post | edit | delete | react | streaming | notes                                                            |
+| --------- | -------------- | ---- | ---- | ------ | ----- | --------- | ---------------------------------------------------------------- |
+| slack     | full           | full | full | full   | full  | full      | HTTP Events API + Socket Mode (Phase 1 + Phase 2 of DES-196).    |
+| gchat     | full           | full | full | full   | full  | full      | HTTP webhook + Pub/Sub push (Phase 3 of DES-196).                |
+| discord   | full           | full | full | full   | full  | full      | HTTP interactions; modals stubbed (Discord has no modal surface). |
+| github    | full           | full | full | full   | stub  | full      | Issue-comment reactions via GitHub reactions API (limited set).  |
+| teams     | full           | full | full | full   | stub  | full      | 7 deliberate stubs — see below.                                  |
+| linear    | full           | full | full | full   | partial | full    | `add_reaction` is full (Linear ``reactionCreate`` GraphQL); `remove_reaction` is stubbed — see below. |
+| telegram  | full           | full | full | full   | full  | full      | 1 deliberate stub — see below.                                   |
+| whatsapp  | full           | full | full | full   | full  | full      | DM-only (WhatsApp Cloud API); 2 deliberate stubs — see below.    |
+
+### Deliberate NotImplementedError stubs
+
+These methods are declared on the adapter but raise `chat.errors.NotImplementedError` on call. They are pinned by tests in each adapter's `test_unsupported_features.py` (or equivalent) so behaviour can't silently change.
+
+- **`chat-adapter-discord`** — 1 site in `packages/chat-adapter-discord/src/chat_adapter_discord/adapter.py`:
+  - `open_modal` — Discord has no standalone modal-open surface; modals are delivered as responses to an interaction (`APPLICATION_MODAL`). Upstream does not wire `open_modal` for Discord either; we raise `chat.NotImplementedError(feature="modals")` to satisfy the Protocol.
+- **`chat-adapter-gchat`** — 1 site in `packages/chat-adapter-gchat/src/chat_adapter_gchat/adapter.py` (approx. `:1115`):
+  - `open_modal` — Google Chat has no Slack-style modal; use a Card v2 response instead. Raises `chat.NotImplementedError(feature="modals")` to satisfy the Protocol.
+- **`chat-adapter-github`** — 4 sites in `packages/chat-adapter-github/src/chat_adapter_github/adapter.py`:
+  - `open_dm` — GitHub has no DM surface; issues and PRs are always repo-scoped. Raises `chat.NotImplementedError(feature="open_dm")`.
+  - `open_modal` — GitHub has no modal surface; use issue comments or PR review comments for interactive flows. Raises `chat.NotImplementedError(feature="open_modal")`.
+  - `post_channel_message` — GitHub has no channel-level post surface; messages are always thread-scoped (issue or PR). Raises `chat.NotImplementedError(feature="post_channel_message")`.
+  - `fetch_channel_messages` — GitHub has no flat channel-message stream; comments belong to individual issues/PRs. Raises `chat.NotImplementedError(feature="fetch_channel_messages")`.
+- **`chat-adapter-teams`** — 9 sites in `packages/chat-adapter-teams/src/chat_adapter_teams/adapter.py` (7 in `:444-498`, plus `post_channel_message` / `open_modal` added in DES-196 phase 7). Pinned by `packages/chat-adapter-teams/tests/test_unsupported_features.py`:
+  - `add_reaction` / `remove_reaction` — Teams' Bot Framework REST transport does not expose message reactions. Raises `chat.NotImplementedError(feature="addReaction" | "removeReaction")`.
+  - `fetch_messages` / `fetch_thread` / `fetch_channel_messages` / `list_threads` / `fetch_channel_info` — Teams history requires the Graph API reader which is not yet ported. Each raises `chat.NotImplementedError` with a matching camelCase `feature` attribute.
+  - `post_channel_message` — requires Graph API (creating a new conversation in a channel is not supported via Bot Framework REST). Raises `chat.NotImplementedError(feature="postChannelMessage")`.
+  - `open_modal` — Teams task modules ship via the `taskModule/continue` invoke response flow, which isn't wired through this webhook facade yet. Raises `chat.NotImplementedError(feature="openModal")`.
+  - Certificate-based auth (`certificate` config) — deprecated upstream and unsupported here. Construction raises `chat_adapter_shared.ValidationError` (not `NotImplementedError`); pinned by the same test module.
+- **`chat-adapter-whatsapp`** — 7 sites in `packages/chat-adapter-whatsapp/src/chat_adapter_whatsapp/adapter.py`:
+  - `edit_message` — WhatsApp Cloud API has no edit endpoint; callers must send a new message. Raises `chat.NotImplementedError(feature="editMessage")`.
+  - `delete_message` — WhatsApp Cloud API has no delete endpoint. Raises `chat.NotImplementedError(feature="deleteMessage")`.
+  - `post_channel_message` / `fetch_channel_info` / `fetch_channel_messages` / `list_threads` — WhatsApp Cloud API is 1:1 DM-only; there is no channel surface. Each raises `chat.NotImplementedError` with a matching `feature` attribute.
+  - `open_modal` — WhatsApp has no modal surface; use interactive messages (buttons / list) instead. Raises `chat.NotImplementedError(feature="open_modal")`.
+- **`chat-adapter-telegram`** — 3 sites in `packages/chat-adapter-telegram/src/chat_adapter_telegram/adapter.py`:
+  - `edit_message` (approx. `:584`) — Telegram's `editMessageText` can return `true` (boolean) instead of a full `Message` object when the edit succeeds without any observable change. When that happens *and* the cached message for the edited id has also been evicted, we cannot reconstruct the updated `Message` locally. Raises `chat.NotImplementedError(feature="editMessage")`. Upstream has the same stub state — see `packages/adapter-telegram/src/index.ts` in `vercel/chat`. In practice callers should treat this as a warning rather than a hard failure and retry with `force=True`.
+  - `open_modal` — Telegram has no modal surface; use inline keyboards via cards. Raises `chat.NotImplementedError(feature="openModal")`.
+  - `stream` — streaming-edit surface not ported (upstream also leaves this unimplemented — Telegram's edit rate-limits make naive streaming impractical). Raises `chat.NotImplementedError(feature="stream")`.
+- **`chat-adapter-linear`** — 7 sites in `packages/chat-adapter-linear/src/chat_adapter_linear/adapter.py` (added in DES-196 phase 8):
+  - `remove_reaction` — Linear's GraphQL surface requires a reaction-id lookup before `reactionDelete`; upstream does not implement it either. Raises `chat.NotImplementedError(feature="removeReaction")`. `add_reaction` is fully implemented via `reactionCreate`.
+  - `post_channel_message` / `fetch_channel_info` / `fetch_channel_messages` / `list_threads` — Linear has no flat channel surface; comments are always issue-scoped. Each raises `chat.NotImplementedError` with a matching `feature` attribute.
+  - `open_dm` — Linear has no DM surface. Raises `chat.NotImplementedError(feature="openDM")`.
+  - `open_modal` — Linear has no modal surface. Raises `chat.NotImplementedError(feature="openModal")`.
+
 ## Entrypoints not yet ported
 
 (None at initial release — 100% port is the goal. This section gets populated only if we defer something.)

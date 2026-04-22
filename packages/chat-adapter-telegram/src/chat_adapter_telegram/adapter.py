@@ -677,6 +677,88 @@ class TelegramAdapter:
         )
 
     # ------------------------------------------------------------------
+    # Adapter Protocol — subscription / channel / modal surfaces
+    # ------------------------------------------------------------------
+
+    async def disconnect(self) -> None:
+        """Tear down background resources (delegates to :meth:`close`)."""
+
+        await self.close()
+
+    async def subscribe(self, thread_id: str) -> None:
+        """Subscribe the bot to a thread — no-op on Telegram.
+
+        Telegram delivers every message in chats the bot is a member of as
+        long as the webhook (or long-polling loop) is active, so there is
+        no explicit per-thread subscription to toggle. Upstream is also a
+        no-op.
+        """
+
+        return None
+
+    async def unsubscribe(self, thread_id: str) -> None:
+        """Unsubscribe — no-op on Telegram (same reasoning as
+        :meth:`subscribe`)."""
+
+        return None
+
+    async def list_threads(
+        self,
+        channel_id: str,
+        options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Return a cache-backed view of thread ids known for ``channel_id``.
+
+        Telegram's Bot API has no "list forum topics" endpoint exposed to
+        bots, so we derive the set from the in-memory message cache.
+        """
+
+        seen: dict[str, None] = {}
+        for t_id in self._message_cache:
+            try:
+                decoded = decode_thread_id(t_id)
+            except ValidationError:
+                continue
+            if decoded.get("chatId") == channel_id:
+                seen.setdefault(t_id, None)
+        return {"threads": list(seen.keys()), "cursor": None}
+
+    async def open_modal(self, trigger_id: str, view: Any) -> Any:
+        """Telegram has no modal surface — use inline keyboards instead."""
+
+        raise NotImplementedError(
+            "openModal is not supported on Telegram — use inline keyboards via cards.",
+            "openModal",
+        )
+
+    async def stream(
+        self,
+        thread_id: str,
+        chunks: Any,
+        options: dict[str, Any] | None = None,
+    ) -> Any:
+        """Streaming-edit surface not yet ported for Telegram.
+
+        Upstream ``adapter-telegram`` also leaves this unimplemented
+        (Telegram's edit rate-limits make naive streaming impractical).
+        """
+
+        raise NotImplementedError(
+            "stream is not implemented on Telegram adapter",
+            "stream",
+        )
+
+    def get_channel_visibility(self, channel_id: str) -> Any:
+        """Telegram chats are always ``"workspace"`` from the bot's POV.
+
+        The bot only sees chats it has been added to; there is no public /
+        private distinction exposed via the Bot API. Upstream returns the
+        same constant.
+        """
+
+        return "workspace"
+
+    # ------------------------------------------------------------------
     # Fetch (cache-backed — Telegram Bot API has no history endpoint)
     # ------------------------------------------------------------------
 
