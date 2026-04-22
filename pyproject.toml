@@ -35,6 +35,7 @@ dev = [
     "ruff>=0.7",
     "mypy>=1.13",
     "types-redis>=4.6",
+    "fakeredis[lua]>=2.20",
 ]
 
 [tool.ruff]

@@ -17,7 +17,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
-dependencies = ["chat", "redis[hiredis]>=5.0"]
+dependencies = [
+    "chat",
+    "redis[hiredis]>=5.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/desplega-ai/chat-py"
@@ -34,3 +37,6 @@ packages = ["src/chat_adapter_state_redis"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests", "src"]
+markers = [
+    "integration: requires a live redis (set REDIS_URL to enable)",
+]
