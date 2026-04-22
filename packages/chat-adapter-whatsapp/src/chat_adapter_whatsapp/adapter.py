@@ -183,6 +183,79 @@ class WhatsAppAdapter:
 
         await self._http.aclose()
 
+    async def disconnect(self) -> None:
+        """Release the HTTP client. Alias for :meth:`close`."""
+
+        await self.close()
+
+    # ------------------------------------------------------------------
+    # Subscriptions / modals
+    #
+    # WhatsApp Cloud API has no native per-thread subscription surface
+    # (subscription is tracked in chat state) and no modal surface. The
+    # methods below exist only to satisfy :class:`chat.types.Adapter`.
+    # ------------------------------------------------------------------
+
+    async def subscribe(self, _thread_id: str) -> None:
+        """No-op — WhatsApp subscription is tracked at the ``Chat`` state layer."""
+
+        return None
+
+    async def unsubscribe(self, _thread_id: str) -> None:
+        """No-op — mirrors :meth:`subscribe`."""
+
+        return None
+
+    async def open_modal(self, _trigger_id: str, _view: Any) -> Any:
+        """WhatsApp has no modal surface; use interactive messages instead."""
+
+        raise NotImplementedError(
+            "WhatsApp has no modal surface; use interactive messages (buttons / list) instead.",
+            "open_modal",
+        )
+
+    # ------------------------------------------------------------------
+    # Channel-level messaging
+    #
+    # WhatsApp Cloud API is 1:1 DM-only; there is no channel surface. These
+    # methods satisfy :class:`chat.types.Adapter` but raise
+    # :class:`chat.NotImplementedError`, pinned by
+    # ``tests/test_unsupported_features.py`` and documented in
+    # ``docs/parity.md``.
+    # ------------------------------------------------------------------
+
+    async def post_channel_message(self, _channel_id: str, _message: Any) -> Any:
+        raise NotImplementedError(
+            "WhatsApp has no channel-level post surface; WhatsApp Cloud API is DM-only.",
+            "post_channel_message",
+        )
+
+    async def fetch_channel_info(self, _channel_id: str) -> Any:
+        raise NotImplementedError(
+            "WhatsApp has no channel-info surface; WhatsApp Cloud API is DM-only.",
+            "fetch_channel_info",
+        )
+
+    async def fetch_channel_messages(
+        self,
+        _channel_id: str,
+        _options: Any | None = None,
+    ) -> Any:
+        raise NotImplementedError(
+            "WhatsApp has no channel-message stream; WhatsApp Cloud API is DM-only.",
+            "fetch_channel_messages",
+        )
+
+    async def list_threads(
+        self,
+        _channel_id: str,
+        _options: Any | None = None,
+    ) -> Any:
+        raise NotImplementedError(
+            "WhatsApp has no channel / thread-listing surface; WhatsApp Cloud API is DM-only.",
+            "list_threads",
+        )
+
     # ------------------------------------------------------------------
     # Webhook handling
     # ------------------------------------------------------------------
@@ -889,6 +962,11 @@ class WhatsAppAdapter:
 
     def is_dm(self, _thread_id: str) -> bool:
         return True
+
+    def get_channel_visibility(self, _channel_id: str) -> str:
+        """WhatsApp DMs are always private 1:1 conversations."""
+
+        return "private"
 
     async def open_dm(self, user_id: str) -> str:
         return encode_thread_id(

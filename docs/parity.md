@@ -136,8 +136,11 @@ These methods are declared on the adapter but raise `chat.errors.NotImplementedE
   - `read_thread` — upstream relies on `@microsoft/teams.apps`'s live dispatch which has no stable Python equivalent.
   - Certificate-based auth (`certificate` config) — scaffolded but not wired.
   - 5 reaction-related paths on Teams' Bot Framework REST transport — Teams does not expose message reactions through the REST API.
-- **`chat-adapter-whatsapp`** — 2 sites in `packages/chat-adapter-whatsapp/src/chat_adapter_whatsapp/adapter.py` (approx. `:783, :789`):
-  - Group-message surfaces: WhatsApp Cloud API is 1:1 DM-only; group dispatch is upstream-deferred.
+- **`chat-adapter-whatsapp`** — 7 sites in `packages/chat-adapter-whatsapp/src/chat_adapter_whatsapp/adapter.py`:
+  - `edit_message` — WhatsApp Cloud API has no edit endpoint; callers must send a new message. Raises `chat.NotImplementedError(feature="editMessage")`.
+  - `delete_message` — WhatsApp Cloud API has no delete endpoint. Raises `chat.NotImplementedError(feature="deleteMessage")`.
+  - `post_channel_message` / `fetch_channel_info` / `fetch_channel_messages` / `list_threads` — WhatsApp Cloud API is 1:1 DM-only; there is no channel surface. Each raises `chat.NotImplementedError` with a matching `feature` attribute.
+  - `open_modal` — WhatsApp has no modal surface; use interactive messages (buttons / list) instead. Raises `chat.NotImplementedError(feature="open_modal")`.
 - **`chat-adapter-telegram`** — 1 site in `packages/chat-adapter-telegram/src/chat_adapter_telegram/adapter.py` (approx. `:584`):
   - Telegram channel admin surface (upstream parity: same stub state).
 
