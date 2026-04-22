@@ -86,9 +86,7 @@ async def on_echo(event: dict[str, Any]) -> None:
 async def on_mention(thread: Any, message: Any) -> None:
     print(f"[e2e] mention from {message.author.user_id}: {message.text!r}")
     await thread.subscribe()
-    await thread.post(
-        f"hi <@{message.author.user_id}>, I'm subscribed now — reply and I'll echo."
-    )
+    await thread.post(f"hi <@{message.author.user_id}>, I'm subscribed now — reply and I'll echo.")
 
 
 @bot.on_subscribed_message

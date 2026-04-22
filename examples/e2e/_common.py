@@ -21,6 +21,14 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+try:
+    import uvicorn
+    from fastapi import FastAPI, Request
+    from fastapi.responses import Response
+except ImportError:
+    uvicorn = None  # type: ignore[assignment]
+    FastAPI = Request = Response = None  # type: ignore[assignment,misc]
+
 if TYPE_CHECKING:
     from chat import Chat
 
@@ -80,22 +88,17 @@ def run_webhook_server(
     - `extra_routes` lets a scenario mount additional handlers (e.g. health
       checks, static URL-verify endpoints).
     """
-    try:
-        import uvicorn
-        from fastapi import FastAPI, Request
-    except ImportError:
+    if FastAPI is None or uvicorn is None:
         sys.exit("[e2e] fastapi / uvicorn not installed. Run `uv sync --group e2e` first.")
 
     app = FastAPI()
     webhook_route = route or f"/api/webhooks/{adapter_name}"
 
     @app.post(webhook_route)
-    async def handle(request: Request) -> Any:  # type: ignore[no-redef]
+    async def handle(request: Request) -> Any:  # type: ignore[no-redef,valid-type]
         body = await request.body()
         headers = dict(request.headers)
         status, resp_headers, resp_body = await bot.handle_webhook(adapter_name, body, headers)
-        from fastapi.responses import Response
-
         return Response(content=resp_body, status_code=status, headers=dict(resp_headers))
 
     @app.get("/health")

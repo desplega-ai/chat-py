@@ -57,14 +57,14 @@ bot = Chat(
 
 
 @bot.on_new_mention
-async def on_mention(thread, message):
-    print(f"[e2e] mention from {message.author.id}: {message.text!r}")
+async def on_mention(thread, message, context=None):
+    print(f"[e2e] mention from {message.author.user_id}: {message.text!r}")
     await thread.subscribe()
-    await thread.post(f"hi <@{message.author.id}>, I'm subscribed now — reply and I'll echo.")
+    await thread.post(f"hi <@{message.author.user_id}>, I'm subscribed now — reply and I'll echo.")
 
 
 @bot.on_subscribed_message
-async def on_thread_message(thread, message):
+async def on_thread_message(thread, message, context=None):
     print(f"[e2e] subscribed-thread message: {message.text!r}")
     await thread.post(f"echo: {message.text}")
 

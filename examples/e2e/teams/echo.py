@@ -80,10 +80,10 @@ from pathlib import Path
 # Make ``examples/e2e/_common.py`` importable when invoked as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from _common import load_env, require_env, run_webhook_server  # noqa: E402
-from chat import Chat  # noqa: E402
-from chat_adapter_state_memory import create_memory_state  # noqa: E402
-from chat_adapter_teams import create_teams_adapter  # noqa: E402
+from _common import load_env, require_env, run_webhook_server
+from chat import Chat
+from chat_adapter_state_memory import create_memory_state
+from chat_adapter_teams import create_teams_adapter
 
 load_env()
 require_env("TEAMS_APP_ID", "TEAMS_APP_PASSWORD", "TEAMS_TENANT_ID")
@@ -104,9 +104,7 @@ bot = Chat(
 async def on_mention(thread, message):  # type: ignore[no-untyped-def]
     print(f"[e2e] mention from {message.author.user_id}: {message.text!r}")
     await thread.subscribe()
-    await thread.post(
-        f"hi {message.author.full_name}, I'm listening — reply and I'll echo."
-    )
+    await thread.post(f"hi {message.author.full_name}, I'm listening — reply and I'll echo.")
 
 
 @bot.on_subscribed_message

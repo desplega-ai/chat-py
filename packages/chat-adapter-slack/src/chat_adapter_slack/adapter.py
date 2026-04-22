@@ -475,10 +475,21 @@ class SlackAdapter:
         """Store the :class:`Chat` reference for dispatch.
 
         Called by :meth:`Chat._do_initialize` once per adapter. When configured
-        for Socket Mode, also opens the websocket via :meth:`connect`.
+        for Socket Mode, also opens the websocket via :meth:`connect`. Looks up
+        ``bot_user_id`` / ``bot_id`` via ``auth.test`` so mention detection
+        works without manual config (mirrors upstream ``initialize``).
         """
 
         self._chat = chat
+        if not self._bot_user_id:
+            with contextlib.suppress(Exception):
+                auth = await self.client.auth_test()
+                self._bot_user_id = auth.get("user_id") or self._bot_user_id
+                self._bot_id = auth.get("bot_id") or self._bot_id
+                self.logger.info(
+                    "Slack bot identity resolved",
+                    {"bot_user_id": self._bot_user_id, "bot_id": self._bot_id},
+                )
         if self.is_socket_mode:
             await self.connect()
 

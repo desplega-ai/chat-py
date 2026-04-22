@@ -63,15 +63,18 @@ from pathlib import Path
 # Make `examples/e2e/_common.py` importable when invoked as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from _common import load_env, require_env, run_webhook_server  # noqa: E402
-from chat import Chat  # noqa: E402
-from chat_adapter_gchat import create_google_chat_adapter  # noqa: E402
-from chat_adapter_state_memory import create_memory_state  # noqa: E402
+from _common import load_env, require_env, run_webhook_server
+from chat import Chat
+from chat_adapter_gchat import create_google_chat_adapter
+from chat_adapter_state_memory import create_memory_state
 
 load_env()
 
 # Either service account JSON or ADC must be present.
-if not os.environ.get("GOOGLE_CHAT_CREDENTIALS") and os.environ.get("GOOGLE_CHAT_USE_ADC") != "true":
+if (
+    not os.environ.get("GOOGLE_CHAT_CREDENTIALS")
+    and os.environ.get("GOOGLE_CHAT_USE_ADC") != "true"
+):
     sys.exit(
         "[e2e] need GOOGLE_CHAT_CREDENTIALS=<service-account-json> "
         "or GOOGLE_CHAT_USE_ADC=true in .env"

@@ -80,10 +80,10 @@ from pathlib import Path
 # Make ``examples/e2e/_common.py`` importable when invoked as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from _common import load_env, require_env, run_webhook_server  # noqa: E402
-from chat import Chat  # noqa: E402
-from chat_adapter_linear import create_linear_adapter  # noqa: E402
-from chat_adapter_state_memory import create_memory_state  # noqa: E402
+from _common import load_env, require_env, run_webhook_server
+from chat import Chat
+from chat_adapter_linear import create_linear_adapter
+from chat_adapter_state_memory import create_memory_state
 
 load_env()
 require_env("LINEAR_API_KEY", "LINEAR_WEBHOOK_SECRET")

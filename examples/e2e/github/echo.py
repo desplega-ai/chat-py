@@ -96,8 +96,7 @@ async def on_mention(thread: Any, message: Any) -> None:
     print(f"[e2e] mention from @{message.author.user_name}: {message.text!r}")
     await thread.subscribe()
     await thread.post(
-        f"hi @{message.author.user_name}, I'm subscribed to this thread — "
-        "reply and I'll echo."
+        f"hi @{message.author.user_name}, I'm subscribed to this thread — reply and I'll echo."
     )
 
 
