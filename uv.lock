@@ -314,12 +314,14 @@ version = "0.1.0"
 source = { editable = "packages/chat-adapter-state-ioredis" }
 dependencies = [
     { name = "chat" },
+    { name = "chat-adapter-state-redis" },
     { name = "redis", extra = ["hiredis"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "chat", editable = "packages/chat" },
+    { name = "chat-adapter-state-redis", editable = "packages/chat-adapter-state-redis" },
     { name = "redis", extras = ["hiredis"], specifier = ">=5.0" },
 ]
 
