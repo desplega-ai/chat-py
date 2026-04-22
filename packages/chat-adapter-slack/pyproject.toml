@@ -1,5 +1,5 @@
 [project]
-name = "chat-adapter-slack"
+name = "chat-py-adapter-slack"
 version = "0.1.0"
 description = "Slack adapter for chat-py"
 readme = "README.md"
@@ -18,8 +18,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "chat",
-    "chat-adapter-shared",
+    "chat-py",
+    "chat-py-adapter-shared",
     "slack-sdk>=3.26",
     "httpx>=0.27",
     "cryptography>=43.0",

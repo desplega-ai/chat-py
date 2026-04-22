@@ -1,5 +1,5 @@
 [project]
-name = "chat-adapter-gchat"
+name = "chat-py-adapter-gchat"
 version = "0.1.0"
 description = "Google Chat adapter for chat-py"
 readme = "README.md"
@@ -18,8 +18,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "chat",
-    "chat-adapter-shared",
+    "chat-py",
+    "chat-py-adapter-shared",
     "httpx>=0.27",
     "google-auth>=2.34",
 ]

@@ -1,5 +1,5 @@
 [project]
-name = "chat-adapter-state-redis"
+name = "chat-py-adapter-state-redis"
 version = "0.1.0"
 description = "Redis state adapter for chat-py"
 readme = "README.md"
@@ -18,7 +18,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "chat",
+    "chat-py",
     "redis[hiredis]>=5.0",
 ]
 

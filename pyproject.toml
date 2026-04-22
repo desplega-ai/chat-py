@@ -10,21 +10,21 @@ license = { text = "MIT" }
 members = ["packages/*"]
 
 [tool.uv.sources]
-chat = { workspace = true }
-chat-adapter-shared = { workspace = true }
-chat-adapter-slack = { workspace = true }
-chat-adapter-discord = { workspace = true }
-chat-adapter-teams = { workspace = true }
-chat-adapter-gchat = { workspace = true }
-chat-adapter-telegram = { workspace = true }
-chat-adapter-github = { workspace = true }
-chat-adapter-linear = { workspace = true }
-chat-adapter-whatsapp = { workspace = true }
-chat-adapter-state-memory = { workspace = true }
-chat-adapter-state-redis = { workspace = true }
-chat-adapter-state-ioredis = { workspace = true }
-chat-adapter-state-pg = { workspace = true }
-chat-integration-tests = { workspace = true }
+chat-py = { workspace = true }
+chat-py-adapter-shared = { workspace = true }
+chat-py-adapter-slack = { workspace = true }
+chat-py-adapter-discord = { workspace = true }
+chat-py-adapter-teams = { workspace = true }
+chat-py-adapter-gchat = { workspace = true }
+chat-py-adapter-telegram = { workspace = true }
+chat-py-adapter-github = { workspace = true }
+chat-py-adapter-linear = { workspace = true }
+chat-py-adapter-whatsapp = { workspace = true }
+chat-py-adapter-state-memory = { workspace = true }
+chat-py-adapter-state-redis = { workspace = true }
+chat-py-adapter-state-ioredis = { workspace = true }
+chat-py-adapter-state-pg = { workspace = true }
+chat-py-integration-tests = { workspace = true }
 
 [dependency-groups]
 dev = [

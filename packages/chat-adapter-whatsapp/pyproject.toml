@@ -1,5 +1,5 @@
 [project]
-name = "chat-adapter-whatsapp"
+name = "chat-py-adapter-whatsapp"
 version = "0.1.0"
 description = "WhatsApp (Meta Cloud API) adapter for chat-py"
 readme = "README.md"
@@ -17,7 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
-dependencies = ["chat", "chat-adapter-shared", "httpx>=0.27"]
+dependencies = ["chat-py", "chat-py-adapter-shared", "httpx>=0.27"]
 
 [project.urls]
 Homepage = "https://github.com/desplega-ai/chat-py"

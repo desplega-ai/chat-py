@@ -1,5 +1,5 @@
 [project]
-name = "chat-integration-tests"
+name = "chat-py-integration-tests"
 version = "0.1.0"
 description = "Integration tests for chat-py (replay fixtures + live tests)"
 readme = "README.md"
@@ -17,7 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
-dependencies = ["chat", "chat-adapter-shared", "chat-adapter-slack", "chat-adapter-discord", "chat-adapter-teams", "chat-adapter-gchat", "chat-adapter-telegram", "chat-adapter-github", "chat-adapter-linear", "chat-adapter-whatsapp", "chat-adapter-state-memory", "chat-adapter-state-redis", "chat-adapter-state-pg", "pytest>=8.3", "pytest-asyncio>=0.24", "respx>=0.21"]
+dependencies = ["chat-py", "chat-py-adapter-shared", "chat-py-adapter-slack", "chat-py-adapter-discord", "chat-py-adapter-teams", "chat-py-adapter-gchat", "chat-py-adapter-telegram", "chat-py-adapter-github", "chat-py-adapter-linear", "chat-py-adapter-whatsapp", "chat-py-adapter-state-memory", "chat-py-adapter-state-redis", "chat-py-adapter-state-pg", "pytest>=8.3", "pytest-asyncio>=0.24", "respx>=0.21"]
 
 [project.urls]
 Homepage = "https://github.com/desplega-ai/chat-py"

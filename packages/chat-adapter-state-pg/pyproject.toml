@@ -1,5 +1,5 @@
 [project]
-name = "chat-adapter-state-pg"
+name = "chat-py-adapter-state-pg"
 version = "0.1.0"
 description = "PostgreSQL state adapter for chat-py"
 readme = "README.md"
@@ -17,7 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
-dependencies = ["chat", "asyncpg>=0.29"]
+dependencies = ["chat-py", "asyncpg>=0.29"]
 
 [project.urls]
 Homepage = "https://github.com/desplega-ai/chat-py"

@@ -8,21 +8,21 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "chat",
-    "chat-adapter-discord",
-    "chat-adapter-gchat",
-    "chat-adapter-github",
-    "chat-adapter-linear",
-    "chat-adapter-shared",
-    "chat-adapter-slack",
-    "chat-adapter-state-ioredis",
-    "chat-adapter-state-memory",
-    "chat-adapter-state-pg",
-    "chat-adapter-state-redis",
-    "chat-adapter-teams",
-    "chat-adapter-telegram",
-    "chat-adapter-whatsapp",
-    "chat-integration-tests",
+    "chat-py",
+    "chat-py-adapter-discord",
+    "chat-py-adapter-gchat",
+    "chat-py-adapter-github",
+    "chat-py-adapter-linear",
+    "chat-py-adapter-shared",
+    "chat-py-adapter-slack",
+    "chat-py-adapter-state-ioredis",
+    "chat-py-adapter-state-memory",
+    "chat-py-adapter-state-pg",
+    "chat-py-adapter-state-redis",
+    "chat-py-adapter-teams",
+    "chat-py-adapter-telegram",
+    "chat-py-adapter-whatsapp",
+    "chat-py-integration-tests",
     "chat-py-workspace",
 ]
 
@@ -182,7 +182,7 @@ wheels = [
 ]
 
 [[package]]
-name = "chat"
+name = "chat-py"
 version = "0.1.0"
 source = { editable = "packages/chat" }
 dependencies = [
@@ -197,50 +197,50 @@ requires-dist = [
 ]
 
 [[package]]
-name = "chat-adapter-discord"
+name = "chat-py-adapter-discord"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-discord" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-shared" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-shared" },
     { name = "httpx" },
     { name = "pynacl" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pynacl", specifier = ">=1.5" },
 ]
 
 [[package]]
-name = "chat-adapter-gchat"
+name = "chat-py-adapter-gchat"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-gchat" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-shared" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-shared" },
     { name = "google-auth" },
     { name = "httpx" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
     { name = "google-auth", specifier = ">=2.34" },
     { name = "httpx", specifier = ">=0.27" },
 ]
 
 [[package]]
-name = "chat-adapter-github"
+name = "chat-py-adapter-github"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-github" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-shared" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-shared" },
     { name = "cryptography" },
     { name = "gidgethub" },
     { name = "httpx" },
@@ -248,52 +248,52 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
     { name = "cryptography", specifier = ">=43.0" },
     { name = "gidgethub", specifier = ">=5.3" },
     { name = "httpx", specifier = ">=0.27" },
 ]
 
 [[package]]
-name = "chat-adapter-linear"
+name = "chat-py-adapter-linear"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-linear" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-shared" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-shared" },
     { name = "httpx" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
     { name = "httpx", specifier = ">=0.27" },
 ]
 
 [[package]]
-name = "chat-adapter-shared"
+name = "chat-py-adapter-shared"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-shared" }
 dependencies = [
-    { name = "chat" },
+    { name = "chat-py" },
     { name = "typing-extensions" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
+    { name = "chat-py", editable = "packages/chat" },
     { name = "typing-extensions", specifier = ">=4.12" },
 ]
 
 [[package]]
-name = "chat-adapter-slack"
+name = "chat-py-adapter-slack"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-slack" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-shared" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-shared" },
     { name = "cryptography" },
     { name = "httpx" },
     { name = "slack-sdk" },
@@ -301,78 +301,78 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
     { name = "cryptography", specifier = ">=43.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "slack-sdk", specifier = ">=3.26" },
 ]
 
 [[package]]
-name = "chat-adapter-state-ioredis"
+name = "chat-py-adapter-state-ioredis"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-state-ioredis" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-state-redis" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-state-redis" },
     { name = "redis", extra = ["hiredis"] },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-state-redis", editable = "packages/chat-adapter-state-redis" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-state-redis", editable = "packages/chat-adapter-state-redis" },
     { name = "redis", extras = ["hiredis"], specifier = ">=5.0" },
 ]
 
 [[package]]
-name = "chat-adapter-state-memory"
+name = "chat-py-adapter-state-memory"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-state-memory" }
 dependencies = [
-    { name = "chat" },
+    { name = "chat-py" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "chat", editable = "packages/chat" }]
+requires-dist = [{ name = "chat-py", editable = "packages/chat" }]
 
 [[package]]
-name = "chat-adapter-state-pg"
+name = "chat-py-adapter-state-pg"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-state-pg" }
 dependencies = [
     { name = "asyncpg" },
-    { name = "chat" },
+    { name = "chat-py" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.29" },
-    { name = "chat", editable = "packages/chat" },
+    { name = "chat-py", editable = "packages/chat" },
 ]
 
 [[package]]
-name = "chat-adapter-state-redis"
+name = "chat-py-adapter-state-redis"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-state-redis" }
 dependencies = [
-    { name = "chat" },
+    { name = "chat-py" },
     { name = "redis", extra = ["hiredis"] },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
+    { name = "chat-py", editable = "packages/chat" },
     { name = "redis", extras = ["hiredis"], specifier = ">=5.0" },
 ]
 
 [[package]]
-name = "chat-adapter-teams"
+name = "chat-py-adapter-teams"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-teams" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-shared" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-shared" },
     { name = "httpx" },
     { name = "msal" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -380,65 +380,65 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "msal", specifier = ">=1.30" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8" },
 ]
 
 [[package]]
-name = "chat-adapter-telegram"
+name = "chat-py-adapter-telegram"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-telegram" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-shared" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-shared" },
     { name = "httpx" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
     { name = "httpx", specifier = ">=0.27" },
 ]
 
 [[package]]
-name = "chat-adapter-whatsapp"
+name = "chat-py-adapter-whatsapp"
 version = "0.1.0"
 source = { editable = "packages/chat-adapter-whatsapp" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-shared" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-shared" },
     { name = "httpx" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
     { name = "httpx", specifier = ">=0.27" },
 ]
 
 [[package]]
-name = "chat-integration-tests"
+name = "chat-py-integration-tests"
 version = "0.1.0"
 source = { editable = "packages/chat-integration-tests" }
 dependencies = [
-    { name = "chat" },
-    { name = "chat-adapter-discord" },
-    { name = "chat-adapter-gchat" },
-    { name = "chat-adapter-github" },
-    { name = "chat-adapter-linear" },
-    { name = "chat-adapter-shared" },
-    { name = "chat-adapter-slack" },
-    { name = "chat-adapter-state-memory" },
-    { name = "chat-adapter-state-pg" },
-    { name = "chat-adapter-state-redis" },
-    { name = "chat-adapter-teams" },
-    { name = "chat-adapter-telegram" },
-    { name = "chat-adapter-whatsapp" },
+    { name = "chat-py" },
+    { name = "chat-py-adapter-discord" },
+    { name = "chat-py-adapter-gchat" },
+    { name = "chat-py-adapter-github" },
+    { name = "chat-py-adapter-linear" },
+    { name = "chat-py-adapter-shared" },
+    { name = "chat-py-adapter-slack" },
+    { name = "chat-py-adapter-state-memory" },
+    { name = "chat-py-adapter-state-pg" },
+    { name = "chat-py-adapter-state-redis" },
+    { name = "chat-py-adapter-teams" },
+    { name = "chat-py-adapter-telegram" },
+    { name = "chat-py-adapter-whatsapp" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "respx" },
@@ -446,19 +446,19 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "chat", editable = "packages/chat" },
-    { name = "chat-adapter-discord", editable = "packages/chat-adapter-discord" },
-    { name = "chat-adapter-gchat", editable = "packages/chat-adapter-gchat" },
-    { name = "chat-adapter-github", editable = "packages/chat-adapter-github" },
-    { name = "chat-adapter-linear", editable = "packages/chat-adapter-linear" },
-    { name = "chat-adapter-shared", editable = "packages/chat-adapter-shared" },
-    { name = "chat-adapter-slack", editable = "packages/chat-adapter-slack" },
-    { name = "chat-adapter-state-memory", editable = "packages/chat-adapter-state-memory" },
-    { name = "chat-adapter-state-pg", editable = "packages/chat-adapter-state-pg" },
-    { name = "chat-adapter-state-redis", editable = "packages/chat-adapter-state-redis" },
-    { name = "chat-adapter-teams", editable = "packages/chat-adapter-teams" },
-    { name = "chat-adapter-telegram", editable = "packages/chat-adapter-telegram" },
-    { name = "chat-adapter-whatsapp", editable = "packages/chat-adapter-whatsapp" },
+    { name = "chat-py", editable = "packages/chat" },
+    { name = "chat-py-adapter-discord", editable = "packages/chat-adapter-discord" },
+    { name = "chat-py-adapter-gchat", editable = "packages/chat-adapter-gchat" },
+    { name = "chat-py-adapter-github", editable = "packages/chat-adapter-github" },
+    { name = "chat-py-adapter-linear", editable = "packages/chat-adapter-linear" },
+    { name = "chat-py-adapter-shared", editable = "packages/chat-adapter-shared" },
+    { name = "chat-py-adapter-slack", editable = "packages/chat-adapter-slack" },
+    { name = "chat-py-adapter-state-memory", editable = "packages/chat-adapter-state-memory" },
+    { name = "chat-py-adapter-state-pg", editable = "packages/chat-adapter-state-pg" },
+    { name = "chat-py-adapter-state-redis", editable = "packages/chat-adapter-state-redis" },
+    { name = "chat-py-adapter-teams", editable = "packages/chat-adapter-teams" },
+    { name = "chat-py-adapter-telegram", editable = "packages/chat-adapter-telegram" },
+    { name = "chat-py-adapter-whatsapp", editable = "packages/chat-adapter-whatsapp" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "respx", specifier = ">=0.21" },
