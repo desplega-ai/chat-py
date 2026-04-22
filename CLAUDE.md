@@ -17,6 +17,15 @@ When in doubt, read upstream:
 
 If behavior in `chat-py` diverges from upstream, that's a bug unless it's documented in `docs/parity.md`.
 
+## Releases
+
+Full procedure in [`docs/releasing.md`](docs/releasing.md). The short version:
+
+- 14 of 15 packages publish under the `chat-py*` PyPI prefix; `chat-py-integration-tests` is workspace-only.
+- Import names (`import chat`, `import chat_adapter_slack`, …) are decoupled from PyPI dist names — don't confuse the two.
+- Always dry-run against TestPyPI before `uv publish`-ing to real PyPI. PyPI is write-once per version.
+- `CHANGELOG.md` drives release notes; no per-version release doc lives in the repo.
+
 ## Common tasks
 
 ### Running the full validation suite
