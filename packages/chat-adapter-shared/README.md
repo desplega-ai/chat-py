@@ -7,7 +7,7 @@ You only depend on this package directly if you're implementing a new adapter. N
 ## Install
 
 ```bash
-uv add chat-adapter-shared
+uv add chat-py-adapter-shared
 ```
 
 ## What it ships

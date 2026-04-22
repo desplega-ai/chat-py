@@ -5,7 +5,7 @@ Slack adapter for [`chat-py`](https://github.com/desplega-ai/chat-py). Python po
 ## Install
 
 ```bash
-uv add chat chat-adapter-slack chat-adapter-state-memory
+uv add chat-py chat-py-adapter-slack chat-py-adapter-state-memory
 ```
 
 ## Auth / config

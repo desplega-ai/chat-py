@@ -7,7 +7,7 @@ Talks to the Bot Framework REST API directly via `httpx` + `msal`. Upstream uses
 ## Install
 
 ```bash
-uv add chat chat-adapter-teams chat-adapter-state-redis
+uv add chat-py chat-py-adapter-teams chat-py-adapter-state-redis
 ```
 
 ## Auth / config

@@ -7,7 +7,7 @@ Handles Linear comment webhooks and optional Agent Session threads; supports API
 ## Install
 
 ```bash
-uv add chat chat-adapter-linear chat-adapter-state-redis
+uv add chat-py chat-py-adapter-linear chat-py-adapter-state-redis
 ```
 
 ## Auth / config

@@ -25,14 +25,14 @@ A lot of modern agent and backend work — LangGraph, DSPy, CrewAI, FastAPI serv
 Install the core SDK and the adapters you need:
 
 ```bash
-uv add chat
-uv add chat-adapter-slack chat-adapter-state-memory
+uv add chat-py
+uv add chat-py-adapter-slack chat-py-adapter-state-memory
 ```
 
 Or with `pip`:
 
 ```bash
-pip install chat chat-adapter-slack chat-adapter-state-memory
+pip install chat-py chat-py-adapter-slack chat-py-adapter-state-memory
 ```
 
 ## Quickstart

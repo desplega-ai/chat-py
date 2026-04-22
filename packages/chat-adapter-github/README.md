@@ -7,7 +7,7 @@ Handles `issue_comment` and `pull_request_review_comment` webhooks; supports PAT
 ## Install
 
 ```bash
-uv add chat chat-adapter-github chat-adapter-state-pg
+uv add chat-py chat-py-adapter-github chat-py-adapter-state-pg
 ```
 
 ## Auth / config

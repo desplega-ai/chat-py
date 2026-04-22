@@ -9,7 +9,7 @@ Telegram adapter for [`chat-py`](https://github.com/desplega-ai/chat-py). Python
 ## Install
 
 ```bash
-uv add chat-adapter-telegram
+uv add chat-py-adapter-telegram
 ```
 
 ## Planned features

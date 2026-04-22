@@ -5,7 +5,7 @@ WhatsApp (Meta Cloud API) adapter for [`chat-py`](https://github.com/desplega-ai
 ## Install
 
 ```bash
-uv add chat-adapter-whatsapp
+uv add chat-py-adapter-whatsapp
 ```
 
 ## Environment variables

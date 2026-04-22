@@ -7,7 +7,7 @@ Wraps `asyncpg`. Uses `SELECT ... FOR UPDATE SKIP LOCKED` for lock acquisition a
 ## Install
 
 ```bash
-uv add chat-adapter-state-pg
+uv add chat-py-adapter-state-pg
 ```
 
 ## Auth / config

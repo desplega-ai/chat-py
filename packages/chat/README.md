@@ -7,9 +7,9 @@ This package is platform-agnostic. You need at least one `chat-adapter-*` and on
 ## Install
 
 ```bash
-uv add chat
+uv add chat-py
 # or
-pip install chat
+pip install chat-py
 ```
 
 ## Minimal example

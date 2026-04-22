@@ -7,7 +7,7 @@ Wraps `redis.asyncio` (`redis-py`'s async client). Suitable for production. Uses
 ## Install
 
 ```bash
-uv add chat-adapter-state-redis
+uv add chat-py-adapter-state-redis
 ```
 
 ## Auth / config
