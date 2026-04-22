@@ -100,6 +100,38 @@ Python has one first-class Redis client — `redis-py` with its `redis.asyncio` 
 
 `@workflow/serde`'s `WORKFLOW_SERIALIZE` / `WORKFLOW_DESERIALIZE` symbols become Python `__chat_serialize__` / `__chat_deserialize__` methods (mirror of `__reduce__` / `__setstate__` but scoped to this SDK's serialization path).
 
+## Dispatch surface
+
+Every adapter's `handle_webhook` + outbound message surface, as of the DES-196 port. States:
+
+- `full` — implemented and exercised by `chat-integration-tests/test_dispatch_memory.py`.
+- `stub` — declared on the adapter, raises `chat.errors.NotImplementedError` at call site (see "Deliberate NotImplementedError stubs" below).
+- `n/a (upstream limit)` — upstream TypeScript does not implement this method either; parity preserved.
+
+| adapter   | handle_webhook | post | edit | delete | react | streaming | notes                                                            |
+| --------- | -------------- | ---- | ---- | ------ | ----- | --------- | ---------------------------------------------------------------- |
+| slack     | full           | full | full | full   | full  | full      | HTTP Events API + Socket Mode (Phase 1 + Phase 2 of DES-196).    |
+| gchat     | full           | full | full | full   | full  | full      | HTTP webhook + Pub/Sub push (Phase 3 of DES-196).                |
+| discord   | full           | full | full | full   | full  | full      | HTTP interactions; modals stubbed (Discord has no modal surface). |
+| github    | full           | full | full | full   | stub  | full      | Issue-comment reactions via GitHub reactions API (limited set).  |
+| teams     | full           | full | full | full   | stub  | full      | 7 deliberate stubs — see below.                                  |
+| linear    | full           | full | full | full   | stub  | full      | `add_reaction` / `remove_reaction` stubbed (Linear has no surface). |
+| telegram  | full           | full | full | full   | full  | full      | 1 deliberate stub — see below.                                   |
+| whatsapp  | full           | full | full | full   | full  | full      | DM-only (WhatsApp Cloud API); 2 deliberate stubs — see below.    |
+
+### Deliberate NotImplementedError stubs
+
+These methods are declared on the adapter but raise `chat.errors.NotImplementedError` on call. They are pinned by tests in each adapter's `test_unsupported_features.py` (or equivalent) so behaviour can't silently change.
+
+- **`chat-adapter-teams`** — 7 sites in `packages/chat-adapter-teams/src/chat_adapter_teams/adapter.py` (approx. `:444-495`):
+  - `read_thread` — upstream relies on `@microsoft/teams.apps`'s live dispatch which has no stable Python equivalent.
+  - Certificate-based auth (`certificate` config) — scaffolded but not wired.
+  - 5 reaction-related paths on Teams' Bot Framework REST transport — Teams does not expose message reactions through the REST API.
+- **`chat-adapter-whatsapp`** — 2 sites in `packages/chat-adapter-whatsapp/src/chat_adapter_whatsapp/adapter.py` (approx. `:783, :789`):
+  - Group-message surfaces: WhatsApp Cloud API is 1:1 DM-only; group dispatch is upstream-deferred.
+- **`chat-adapter-telegram`** — 1 site in `packages/chat-adapter-telegram/src/chat_adapter_telegram/adapter.py` (approx. `:584`):
+  - Telegram channel admin surface (upstream parity: same stub state).
+
 ## Entrypoints not yet ported
 
 (None at initial release — 100% port is the goal. This section gets populated only if we defer something.)
