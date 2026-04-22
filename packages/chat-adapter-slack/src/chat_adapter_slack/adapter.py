@@ -385,6 +385,15 @@ class SlackAdapter:
         # final text on stream close. Map: message_ts -> accumulated buffer.
         self._active_streams: dict[str, str] = {}
 
+        # Socket Mode runtime — lazily built by :meth:`connect`. Tests can swap
+        # out ``_socket_client_factory`` to inject an ``AsyncMock`` before
+        # calling ``connect()``.
+        self._socket_client: Any = None
+        self._socket_client_factory: Any = None
+        # Strong refs to dispatch tasks so they aren't garbage-collected
+        # mid-flight (ref RUF006).
+        self._socket_dispatch_tasks: set[asyncio.Task[Any]] = set()
+
     # ------------------------------------------------------------------ props
 
     @property
@@ -465,18 +474,107 @@ class SlackAdapter:
     async def initialize(self, chat: Any) -> None:
         """Store the :class:`Chat` reference for dispatch.
 
-        Called by :meth:`Chat._do_initialize` once per adapter. Socket-mode
-        connects on initialize; webhook mode is a no-op aside from wiring.
+        Called by :meth:`Chat._do_initialize` once per adapter. When configured
+        for Socket Mode, also opens the websocket via :meth:`connect`.
         """
 
         self._chat = chat
-        # Socket mode is lit up in Phase 2 — this stub keeps webhook-mode callers
-        # from hitting AttributeError until then.
+        if self.is_socket_mode:
+            await self.connect()
+
+    async def connect(self) -> None:
+        """Open a Socket Mode websocket when ``mode="socket"``.
+
+        Webhook-mode adapters ignore this call — Slack delivers events via HTTP
+        POST to :meth:`handle_webhook` instead. Mirrors upstream's
+        ``SocketModeClient`` branch of ``adapter-slack/src/index.ts``: one
+        websocket per adapter, one ``socket_mode_request_listener`` that acks
+        every envelope and then schedules :meth:`_dispatch_envelope` on the
+        event loop.
+        """
+
+        if not self.is_socket_mode:
+            return
+        if self._socket_client is not None:
+            return
+
+        client = self._build_socket_client()
+        # Register the dispatch bridge BEFORE connecting — otherwise early
+        # envelopes could arrive with no listener attached.
+        client.socket_mode_request_listeners.append(self._socket_mode_listener)
+        self._socket_client = client
+        await client.connect()
 
     async def disconnect(self) -> None:
-        """Tear down any long-lived connections (Socket Mode in Phase 2)."""
+        """Close the Socket Mode websocket if one is open (no-op otherwise)."""
 
-        return None
+        client = self._socket_client
+        if client is None:
+            return
+        self._socket_client = None
+        await client.close()
+
+    def _build_socket_client(self) -> Any:
+        """Construct a :class:`SocketModeClient` (or a test double via the
+        ``_socket_client_factory`` hook).
+        """
+
+        if self._socket_client_factory is not None:
+            return self._socket_client_factory()
+
+        if not self.app_token:
+            raise ValidationError(
+                "slack",
+                "appToken is required to open Socket Mode. Set SLACK_APP_TOKEN "
+                "or provide it in config.",
+            )
+
+        # Lazy import — slack_sdk.socket_mode.aiohttp depends on aiohttp which
+        # is already an indirect dep via slack_sdk itself.
+        from slack_sdk.socket_mode.aiohttp import SocketModeClient
+
+        return SocketModeClient(app_token=self.app_token, web_client=self.client)
+
+    async def _socket_mode_listener(
+        self,
+        client: Any,
+        req: Any,
+    ) -> None:
+        """Bridge ``SocketModeRequest`` → internal dispatch.
+
+        Ack order matters: we send the ack FIRST (so Slack doesn't retry the
+        envelope), then schedule the handler as a task so slow handlers don't
+        extend ack latency. This mirrors upstream's ordering exactly.
+        """
+
+        from slack_sdk.socket_mode.response import SocketModeResponse
+
+        # 1) Ack immediately.
+        await client.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
+
+        # 2) Translate the envelope into the payload shape ``_dispatch_envelope``
+        #    already handles. Socket Mode wraps the JSON body under ``payload``
+        #    while webhook mode hands us the body directly.
+        payload: dict[str, Any] = dict(req.payload) if isinstance(req.payload, dict) else {}
+
+        if req.type == "events_api":
+            # Already shaped like ``{"type": "event_callback", "event": {...}}``.
+            dispatch_payload = payload
+        elif req.type == "interactive":
+            # Slack wraps the interactivity payload directly in ``payload``.
+            dispatch_payload = payload
+            dispatch_payload["_kind"] = "interactivity"
+        elif req.type == "slash_commands":
+            dispatch_payload = payload
+            dispatch_payload["_kind"] = "slash_command"
+        else:
+            # Unknown envelope type — ack'd, ignore.
+            return
+
+        # 3) Schedule the dispatch as a task so this listener returns promptly.
+        task = asyncio.create_task(self._dispatch_envelope(dispatch_payload))
+        self._socket_dispatch_tasks.add(task)
+        task.add_done_callback(self._socket_dispatch_tasks.discard)
 
     # ------------------------------------------------------------------ webhook
 

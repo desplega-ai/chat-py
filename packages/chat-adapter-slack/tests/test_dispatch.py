@@ -578,3 +578,274 @@ async def test_stream_final_update_sends_full_text(adapter: SlackAdapter) -> Non
     assert adapter.client.chat_update.await_count == 1
     final = adapter.client.chat_update.await_args
     assert "abc" in final.kwargs["text"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Socket Mode
+#
+# These tests mirror upstream's ``SocketModeClient`` branch in
+# ``adapter-slack/src/index.ts``. The public surface (``handle_webhook``)
+# is unchanged — Socket Mode just feeds envelopes to the same
+# ``_dispatch_envelope`` helper Phase 1 introduced.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def socket_adapter(monkeypatch: pytest.MonkeyPatch) -> SlackAdapter:
+    """Adapter configured for ``mode="socket"`` (requires app token, not signing)."""
+
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-test")
+    monkeypatch.delenv("SLACK_SIGNING_SECRET", raising=False)
+    adp = create_slack_adapter({"mode": "socket", "appToken": "xapp-test", "botToken": "xoxb-test"})
+    adp._bot_user_id = "U_BOT"
+    return adp
+
+
+# ---------------------------------------------------------------------------
+# Cycle 2.1 — ``connect()`` opens a socket when ``mode="socket"``
+# ---------------------------------------------------------------------------
+
+
+async def test_connect_opens_socket_when_mode_is_socket(
+    socket_adapter: SlackAdapter,
+) -> None:
+    from slack_sdk.socket_mode.aiohttp import SocketModeClient
+
+    # Patch the SocketModeClient class so we don't actually open a websocket.
+    fake_client = AsyncMock(spec=SocketModeClient)
+    fake_client.connect = AsyncMock()
+    fake_client.close = AsyncMock()
+    # socket_mode_request_listeners is a plain list on the real client.
+    fake_client.socket_mode_request_listeners = []
+
+    # Stash the factory so ``connect()`` uses our fake instead of building a real one.
+    socket_adapter._socket_client_factory = lambda: fake_client  # type: ignore[attr-defined]
+
+    await socket_adapter.connect()
+
+    fake_client.connect.assert_awaited_once()
+    # Listener list must have exactly one entry wired up — our dispatch bridge.
+    assert len(fake_client.socket_mode_request_listeners) == 1
+
+
+async def test_connect_is_noop_in_webhook_mode(adapter: SlackAdapter) -> None:
+    # Webhook-mode adapter should ignore ``connect()`` entirely.
+    await adapter.connect()
+    assert adapter._socket_client is None  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# Cycle 2.2 — ``events_api`` envelope routed to handler
+# ---------------------------------------------------------------------------
+
+
+async def test_events_api_envelope_routes_to_mention_handler(
+    socket_adapter: SlackAdapter,
+) -> None:
+    from slack_sdk.socket_mode.aiohttp import SocketModeClient
+    from slack_sdk.socket_mode.request import SocketModeRequest
+
+    bot = Chat(user_name="bot", adapters={"slack": socket_adapter}, state=create_mock_state())
+    seen = asyncio.Event()
+    captured: dict[str, Any] = {}
+
+    async def _h(thread: Any, message: Any, context: Any = None) -> None:
+        captured["text"] = message.text
+        seen.set()
+
+    bot.on_new_mention(_h)
+
+    fake_client = AsyncMock(spec=SocketModeClient)
+    fake_client.connect = AsyncMock()
+    fake_client.close = AsyncMock()
+    fake_client.send_socket_mode_response = AsyncMock()
+    fake_client.socket_mode_request_listeners = []
+    socket_adapter._socket_client_factory = lambda: fake_client  # type: ignore[attr-defined]
+
+    await bot.initialize()
+
+    # The listener should have been registered on connect.
+    assert len(fake_client.socket_mode_request_listeners) == 1
+    listener = fake_client.socket_mode_request_listeners[0]
+
+    envelope = SocketModeRequest(
+        type="events_api",
+        envelope_id="env-1",
+        payload={
+            "type": "event_callback",
+            "event": {
+                "type": "app_mention",
+                "channel": "C1",
+                "user": "U2",
+                "text": "<@U_BOT> hello",
+                "ts": "1234.5",
+                "thread_ts": "1234.5",
+            },
+        },
+    )
+    await listener(fake_client, envelope)
+
+    await asyncio.wait_for(seen.wait(), timeout=2.0)
+    assert captured["text"] == "<@U_BOT> hello"
+
+
+# ---------------------------------------------------------------------------
+# Cycle 2.3 — Every envelope is ack'd (send_socket_mode_response called)
+# ---------------------------------------------------------------------------
+
+
+async def test_every_envelope_is_acked(
+    socket_adapter: SlackAdapter,
+) -> None:
+    from slack_sdk.socket_mode.aiohttp import SocketModeClient
+    from slack_sdk.socket_mode.request import SocketModeRequest
+    from slack_sdk.socket_mode.response import SocketModeResponse
+
+    bot = Chat(user_name="bot", adapters={"slack": socket_adapter}, state=create_mock_state())
+
+    fake_client = AsyncMock(spec=SocketModeClient)
+    fake_client.connect = AsyncMock()
+    fake_client.close = AsyncMock()
+    fake_client.send_socket_mode_response = AsyncMock()
+    fake_client.socket_mode_request_listeners = []
+    socket_adapter._socket_client_factory = lambda: fake_client  # type: ignore[attr-defined]
+
+    await bot.initialize()
+    listener = fake_client.socket_mode_request_listeners[0]
+
+    envelope = SocketModeRequest(
+        type="events_api",
+        envelope_id="env-ack-1",
+        payload={
+            "type": "event_callback",
+            "event": {
+                "type": "app_mention",
+                "channel": "C1",
+                "user": "U2",
+                "text": "<@U_BOT> hi",
+                "ts": "1234.5",
+                "thread_ts": "1234.5",
+            },
+        },
+    )
+    await listener(fake_client, envelope)
+
+    # Ack must have fired, with the envelope ID. Accept either a SocketModeResponse
+    # instance or a dict shape — both are valid per the SDK.
+    fake_client.send_socket_mode_response.assert_awaited()
+    call_arg = fake_client.send_socket_mode_response.await_args.args[0]
+    if isinstance(call_arg, SocketModeResponse):
+        assert call_arg.envelope_id == "env-ack-1"
+    else:
+        assert call_arg.get("envelope_id") == "env-ack-1"
+
+    # Let any scheduled dispatch task drain so pytest doesn't warn about
+    # pending tasks at test end.
+    await asyncio.sleep(0)
+
+
+async def test_ack_happens_before_dispatch_task_runs(
+    socket_adapter: SlackAdapter,
+) -> None:
+    """Acks must be emitted synchronously (before dispatch) — upstream
+    schedules the handler as a task after acking. This prevents Slack
+    from timing out and retrying slow handlers."""
+
+    from slack_sdk.socket_mode.aiohttp import SocketModeClient
+    from slack_sdk.socket_mode.request import SocketModeRequest
+
+    bot = Chat(user_name="bot", adapters={"slack": socket_adapter}, state=create_mock_state())
+
+    order: list[str] = []
+
+    async def _slow(thread: Any, message: Any, context: Any = None) -> None:
+        # Simulate handler work — happens AFTER ack if scheduled as a task.
+        await asyncio.sleep(0.05)
+        order.append("handler")
+
+    bot.on_new_mention(_slow)
+
+    fake_client = AsyncMock(spec=SocketModeClient)
+    fake_client.connect = AsyncMock()
+    fake_client.close = AsyncMock()
+
+    async def _record_ack(_resp: Any) -> None:
+        order.append("ack")
+
+    fake_client.send_socket_mode_response = AsyncMock(side_effect=_record_ack)
+    fake_client.socket_mode_request_listeners = []
+    socket_adapter._socket_client_factory = lambda: fake_client  # type: ignore[attr-defined]
+
+    await bot.initialize()
+    listener = fake_client.socket_mode_request_listeners[0]
+
+    envelope = SocketModeRequest(
+        type="events_api",
+        envelope_id="env-order-1",
+        payload={
+            "type": "event_callback",
+            "event": {
+                "type": "app_mention",
+                "channel": "C1",
+                "user": "U2",
+                "text": "<@U_BOT> hi",
+                "ts": "1234.5",
+                "thread_ts": "1234.5",
+            },
+        },
+    )
+    await listener(fake_client, envelope)
+
+    # At this point ack must have run; handler must not have finished yet.
+    assert order == ["ack"], f"ack must precede handler; got {order}"
+
+    # Wait for the scheduled dispatch task to finish.
+    await asyncio.sleep(0.1)
+    assert order == ["ack", "handler"]
+
+
+# ---------------------------------------------------------------------------
+# Cycle 2.4 — ``disconnect()`` closes the socket
+# ---------------------------------------------------------------------------
+
+
+async def test_disconnect_closes_socket(socket_adapter: SlackAdapter) -> None:
+    from slack_sdk.socket_mode.aiohttp import SocketModeClient
+
+    fake_client = AsyncMock(spec=SocketModeClient)
+    fake_client.connect = AsyncMock()
+    fake_client.close = AsyncMock()
+    fake_client.socket_mode_request_listeners = []
+    socket_adapter._socket_client_factory = lambda: fake_client  # type: ignore[attr-defined]
+
+    await socket_adapter.connect()
+    await socket_adapter.disconnect()
+
+    fake_client.close.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Cycle 2.5 — Chat-level init wires Socket Mode
+# ---------------------------------------------------------------------------
+
+
+async def test_chat_initialize_connects_socket_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-test")
+    monkeypatch.delenv("SLACK_SIGNING_SECRET", raising=False)
+    adp = create_slack_adapter({"mode": "socket", "botToken": "xoxb", "appToken": "xapp-test"})
+    adp.connect = AsyncMock()  # type: ignore[method-assign]
+    bot = Chat(user_name="bot", adapters={"slack": adp}, state=create_mock_state())
+    await bot.initialize()
+    adp.connect.assert_awaited_once()
+
+
+async def test_chat_initialize_does_not_connect_in_webhook_mode(
+    adapter: SlackAdapter,
+) -> None:
+    """Webhook-mode adapters must not open a socket on initialize."""
+    adapter.connect = AsyncMock()  # type: ignore[method-assign]
+    bot = Chat(user_name="bot", adapters={"slack": adapter}, state=create_mock_state())
+    await bot.initialize()
+    adapter.connect.assert_not_called()
