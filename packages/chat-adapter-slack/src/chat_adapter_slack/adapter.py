@@ -21,14 +21,21 @@ see ``docs/parity.md`` for the current split.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hashlib
 import hmac
+import json
 import os
 import re
 import time
+from collections.abc import AsyncIterable
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from urllib.parse import parse_qs
 
 from chat_adapter_shared import (
+    AdapterRateLimitError,
     AuthenticationError,
     ValidationError,
 )
@@ -293,6 +300,8 @@ class SlackAdapter:
     """
 
     name = "slack"
+    lock_scope: Literal["thread", "channel"] | None = "thread"
+    persist_message_history: bool = False
 
     def __init__(self, config: SlackAdapterConfig | None = None) -> None:
         cfg: SlackAdapterConfig = dict(config or {})  # type: ignore[assignment]
@@ -369,6 +378,13 @@ class SlackAdapter:
 
         self.format_converter = SlackFormatConverter()
 
+        # Chat reference — set by :meth:`initialize`.
+        self._chat: Any = None
+
+        # In-flight streams keyed by the temp message ts so we can update the
+        # final text on stream close. Map: message_ts -> accumulated buffer.
+        self._active_streams: dict[str, str] = {}
+
     # ------------------------------------------------------------------ props
 
     @property
@@ -443,6 +459,902 @@ class SlackAdapter:
         """Instance wrapper around :func:`verify_signature`."""
 
         return verify_signature(body, timestamp, signature, self.signing_secret)
+
+    # ------------------------------------------------------------------ lifecycle
+
+    async def initialize(self, chat: Any) -> None:
+        """Store the :class:`Chat` reference for dispatch.
+
+        Called by :meth:`Chat._do_initialize` once per adapter. Socket-mode
+        connects on initialize; webhook mode is a no-op aside from wiring.
+        """
+
+        self._chat = chat
+        # Socket mode is lit up in Phase 2 — this stub keeps webhook-mode callers
+        # from hitting AttributeError until then.
+
+    async def disconnect(self) -> None:
+        """Tear down any long-lived connections (Socket Mode in Phase 2)."""
+
+        return None
+
+    # ------------------------------------------------------------------ webhook
+
+    async def handle_webhook(
+        self,
+        body: bytes,
+        headers: dict[str, str],
+        options: Any | None = None,
+    ) -> tuple[int, dict[str, str], bytes]:
+        """Handle an inbound Slack webhook request.
+
+        Mirrors upstream ``handleWebhook`` in ``adapter-slack/src/index.ts``:
+
+        1. Verify the request signature.
+        2. Branch on body shape — JSON envelope vs. ``x-www-form-urlencoded``
+           interactivity / slash-command payloads.
+        3. Dispatch via :meth:`_dispatch_envelope` (shared with Phase 2 Socket
+           Mode).
+        """
+
+        # Normalize header keys to lowercase (Slack uses ``x-slack-*`` but some
+        # framework glue capitalizes them).
+        h = {k.lower(): v for k, v in headers.items()}
+        timestamp = h.get("x-slack-request-timestamp")
+        signature = h.get("x-slack-signature")
+        content_type = (h.get("content-type") or "").split(";", 1)[0].strip()
+
+        body_str = body.decode("utf-8") if isinstance(body, bytes | bytearray) else str(body)
+
+        if not self.verify_signature(body_str, timestamp, signature):
+            self.logger.warn("Rejected Slack webhook: signature mismatch or stale timestamp")
+            return (401, {}, b"")
+
+        # Parse payload — interactivity / slash commands arrive as form-urlencoded.
+        payload: dict[str, Any]
+        if content_type == "application/x-www-form-urlencoded":
+            form = parse_qs(body_str, keep_blank_values=True)
+            flat = {k: v[0] if v else "" for k, v in form.items()}
+            if "payload" in flat:
+                # Interactivity (block_actions / view_submission / view_closed /
+                # shortcut / message_action / block_suggestion).
+                try:
+                    payload = json.loads(flat["payload"])
+                except json.JSONDecodeError as err:
+                    self.logger.error("Invalid interactivity payload", {"error": err})
+                    return (400, {}, b"")
+                payload["_kind"] = "interactivity"
+            else:
+                # Slash command.
+                payload = dict(flat)
+                payload["_kind"] = "slash_command"
+        else:
+            try:
+                payload = json.loads(body_str)
+            except json.JSONDecodeError as err:
+                self.logger.error("Invalid Slack webhook body", {"error": err})
+                return (400, {}, b"")
+
+        # URL verification handshake — return the challenge verbatim.
+        if payload.get("type") == "url_verification":
+            return (
+                200,
+                {"content-type": "application/json"},
+                json.dumps({"challenge": payload.get("challenge", "")}).encode("utf-8"),
+            )
+
+        return await self._dispatch_envelope(payload, options)
+
+    async def _dispatch_envelope(
+        self,
+        payload: dict[str, Any],
+        options: Any | None = None,
+    ) -> tuple[int, dict[str, str], bytes]:
+        """Route a parsed Slack envelope to the appropriate handler.
+
+        Shared between webhook (Phase 1) and Socket Mode (Phase 2). Returns a
+        ``(status, headers, body)`` tuple matching the HTTP response Slack
+        expects for webhook delivery; Socket Mode ignores the body and just
+        ack's the envelope.
+        """
+
+        kind = payload.get("_kind")
+
+        # --- interactivity -------------------------------------------------
+        if kind == "interactivity":
+            itype = payload.get("type")
+            if itype == "block_actions":
+                await self._handle_block_actions(payload, options)
+                return (200, {}, b"")
+            if itype == "view_submission":
+                return await self._handle_view_submission(payload, options)
+            if itype == "view_closed":
+                await self._handle_view_closed(payload, options)
+                return (200, {}, b"")
+            if itype == "block_suggestion":
+                # Phase-1 stub: return empty options set.
+                return (
+                    200,
+                    {"content-type": "application/json"},
+                    json.dumps({"options": []}).encode("utf-8"),
+                )
+            # Other interactivity shapes (message_action, shortcut) fall through
+            # as 200 no-ops for now — not part of the Phase-1 critical surface.
+            return (200, {}, b"")
+
+        # --- slash command -------------------------------------------------
+        if kind == "slash_command":
+            await self._handle_slash_command(payload, options)
+            return (200, {}, b"")
+
+        # --- Events API ----------------------------------------------------
+        if payload.get("type") == "event_callback":
+            event = payload.get("event") or {}
+            event_type = event.get("type")
+            if event_type == "app_mention":
+                await self._handle_message_event(event, is_mention=True, options=options)
+                return (200, {}, b"")
+            if event_type == "message":
+                await self._handle_message_event(event, is_mention=False, options=options)
+                return (200, {}, b"")
+            if event_type in ("reaction_added", "reaction_removed"):
+                await self._handle_reaction_event(event, options=options)
+                return (200, {}, b"")
+            if event_type == "assistant_thread_started":
+                if self._chat is not None:
+                    self._chat.process_assistant_thread_started(event, options)
+                return (200, {}, b"")
+            if event_type == "assistant_context_changed":
+                if self._chat is not None:
+                    self._chat.process_assistant_context_changed(event, options)
+                return (200, {}, b"")
+            if event_type == "app_home_opened":
+                if self._chat is not None:
+                    self._chat.process_app_home_opened(event, options)
+                return (200, {}, b"")
+            if event_type == "member_joined_channel":
+                if self._chat is not None:
+                    self._chat.process_member_joined_channel(event, options)
+                return (200, {}, b"")
+
+        # Unknown / unhandled — 200 so Slack doesn't retry.
+        return (200, {}, b"")
+
+    # ----------------------------------------------- inbound event builders
+
+    def _author_from_event(self, event: dict[str, Any]) -> Any:
+        """Build a chat ``Author`` from a Slack event.
+
+        We can't hit ``users.info`` inline (3-second timeout budget), so we
+        build a minimal ``Author`` from the fields present on the event. The
+        ``is_me`` check compares against the adapter's ``bot_user_id``.
+        """
+
+        from chat.types import Author
+
+        user_id = event.get("user") or event.get("bot_id") or ""
+        user_name = event.get("username") or user_id
+        is_me = bool(self._bot_user_id and user_id == self._bot_user_id)
+        is_bot = bool(event.get("bot_id"))
+        return Author(
+            user_id=user_id,
+            user_name=user_name,
+            full_name=user_name,
+            is_bot=is_bot,
+            is_me=is_me,
+        )
+
+    def _build_message(self, event: dict[str, Any], thread_id: str) -> Any:
+        """Build a chat :class:`Message` from a Slack message event."""
+
+        from chat.markdown import parse_markdown
+        from chat.message import Message
+        from chat.types import MessageMetadata
+
+        text = event.get("text", "") or ""
+        ts = event.get("ts", "")
+        date_sent = datetime.now(UTC)
+        if ts:
+            with contextlib.suppress(TypeError, ValueError):
+                date_sent = datetime.fromtimestamp(float(ts), tz=UTC)
+
+        formatted = parse_markdown(text)
+        author = self._author_from_event(event)
+        return Message(
+            id=ts,
+            thread_id=thread_id,
+            text=text,
+            formatted=formatted,
+            raw=event,
+            author=author,
+            metadata=MessageMetadata(date_sent=date_sent, edited=False),
+        )
+
+    async def _handle_message_event(
+        self,
+        event: dict[str, Any],
+        *,
+        is_mention: bool,
+        options: Any | None,
+    ) -> None:
+        if self._chat is None:
+            return
+
+        # Skip bot's own messages / edits / deletes.
+        subtype = event.get("subtype")
+        if subtype in ("message_changed", "message_deleted", "channel_join", "channel_leave"):
+            return
+        bot_id = event.get("bot_id")
+        if bot_id and self._bot_id and bot_id == self._bot_id:
+            return
+
+        channel = event.get("channel", "")
+        thread_ts = event.get("thread_ts") or event.get("ts", "")
+        thread_id = encode_thread_id({"channel": channel, "threadTs": thread_ts})
+
+        message = self._build_message(event, thread_id)
+        if is_mention:
+            message.is_mention = True
+
+        self._chat.process_message(self, thread_id, message, options)
+
+    async def _handle_reaction_event(
+        self,
+        event: dict[str, Any],
+        *,
+        options: Any | None,
+    ) -> None:
+        if self._chat is None:
+            return
+
+        from chat.emoji import default_emoji_resolver
+        from chat.types import Author
+
+        item = event.get("item") or {}
+        channel = item.get("channel", "")
+        message_ts = item.get("ts", "")
+        thread_id = encode_thread_id({"channel": channel, "threadTs": message_ts})
+
+        raw_emoji = event.get("reaction", "")
+        emoji = default_emoji_resolver.from_slack(raw_emoji)
+        user_id = event.get("user", "")
+        is_me = bool(self._bot_user_id and user_id == self._bot_user_id)
+        author = Author(
+            user_id=user_id,
+            user_name=user_id,
+            full_name=user_id,
+            is_bot=False,
+            is_me=is_me,
+        )
+
+        reaction_event: dict[str, Any] = {
+            "adapter": self,
+            "emoji": emoji,
+            "rawEmoji": raw_emoji,
+            "added": event.get("type") == "reaction_added",
+            "threadId": thread_id,
+            "messageId": message_ts,
+            "user": author,
+            "raw": event,
+        }
+        self._chat.process_reaction(reaction_event, options)
+
+    async def _handle_block_actions(
+        self,
+        payload: dict[str, Any],
+        options: Any | None,
+    ) -> None:
+        if self._chat is None:
+            return
+
+        from chat.types import Author
+
+        user = payload.get("user") or {}
+        user_id = user.get("id", "")
+        is_me = bool(self._bot_user_id and user_id == self._bot_user_id)
+        author = Author(
+            user_id=user_id,
+            user_name=user.get("username") or user.get("name") or user_id,
+            full_name=user.get("name") or user_id,
+            is_bot=False,
+            is_me=is_me,
+        )
+
+        actions = payload.get("actions") or []
+        channel = (payload.get("channel") or {}).get("id", "")
+        message = payload.get("message") or {}
+        thread_ts = message.get("thread_ts") or message.get("ts", "")
+        thread_id = encode_thread_id({"channel": channel, "threadTs": thread_ts}) if channel else ""
+        trigger_id = payload.get("trigger_id")
+
+        for action in actions:
+            action_event: dict[str, Any] = {
+                "adapter": self,
+                "actionId": action.get("action_id", ""),
+                "value": action.get("value"),
+                "triggerId": trigger_id,
+                "threadId": thread_id or None,
+                "messageId": message.get("ts"),
+                "user": author,
+                "raw": payload,
+            }
+            self._chat.process_action(action_event, options)
+
+    async def _handle_view_submission(
+        self,
+        payload: dict[str, Any],
+        options: Any | None,
+    ) -> tuple[int, dict[str, str], bytes]:
+        if self._chat is None:
+            return (200, {}, b"")
+
+        from chat.types import Author
+
+        view = payload.get("view") or {}
+        callback_id = view.get("callback_id", "")
+        values = ((view.get("state") or {}).get("values")) or {}
+
+        user = payload.get("user") or {}
+        user_id = user.get("id", "")
+        author = Author(
+            user_id=user_id,
+            user_name=user.get("username") or user.get("name") or user_id,
+            full_name=user.get("name") or user_id,
+            is_bot=False,
+            is_me=False,
+        )
+
+        # Flatten form values into a simple ``{action_id: value}`` dict.
+        flat_values: dict[str, Any] = {}
+        for _block_id, block_values in values.items():
+            if not isinstance(block_values, dict):
+                continue
+            for action_id, action_state in block_values.items():
+                if not isinstance(action_state, dict):
+                    continue
+                atype = action_state.get("type")
+                if atype == "plain_text_input":
+                    flat_values[action_id] = action_state.get("value")
+                elif atype in ("static_select", "external_select", "radio_buttons"):
+                    selected = action_state.get("selected_option") or {}
+                    flat_values[action_id] = selected.get("value")
+                elif atype == "multi_static_select":
+                    flat_values[action_id] = [
+                        opt.get("value") for opt in action_state.get("selected_options") or []
+                    ]
+                elif atype in ("datepicker", "timepicker"):
+                    flat_values[action_id] = action_state.get("selected_date") or action_state.get(
+                        "selected_time"
+                    )
+                elif atype == "checkboxes":
+                    flat_values[action_id] = [
+                        opt.get("value") for opt in action_state.get("selected_options") or []
+                    ]
+                else:
+                    flat_values[action_id] = action_state.get("value")
+
+        from .modals import decode_modal_metadata
+
+        context = decode_modal_metadata(view.get("private_metadata"))
+        context_id = context.get("contextId") if isinstance(context, dict) else None
+
+        event: dict[str, Any] = {
+            "adapter": self,
+            "callbackId": callback_id,
+            "values": flat_values,
+            "user": author,
+            "raw": payload,
+            "viewId": view.get("id"),
+        }
+        response = await self._chat.process_modal_submit(event, context_id, options)
+
+        if response:
+            # Handlers may return a Slack-shaped view update; echo as JSON.
+            return (
+                200,
+                {"content-type": "application/json"},
+                json.dumps(response).encode("utf-8"),
+            )
+        return (
+            200,
+            {"content-type": "application/json"},
+            json.dumps({"response_action": "clear"}).encode("utf-8"),
+        )
+
+    async def _handle_view_closed(
+        self,
+        payload: dict[str, Any],
+        options: Any | None,
+    ) -> None:
+        if self._chat is None:
+            return
+
+        from chat.types import Author
+
+        view = payload.get("view") or {}
+        user = payload.get("user") or {}
+        user_id = user.get("id", "")
+        author = Author(
+            user_id=user_id,
+            user_name=user.get("username") or user.get("name") or user_id,
+            full_name=user.get("name") or user_id,
+            is_bot=False,
+            is_me=False,
+        )
+
+        from .modals import decode_modal_metadata
+
+        context = decode_modal_metadata(view.get("private_metadata"))
+        context_id = context.get("contextId") if isinstance(context, dict) else None
+
+        event: dict[str, Any] = {
+            "adapter": self,
+            "callbackId": view.get("callback_id", ""),
+            "user": author,
+            "raw": payload,
+        }
+        self._chat.process_modal_close(event, context_id, options)
+
+    async def _handle_slash_command(
+        self,
+        payload: dict[str, Any],
+        options: Any | None,
+    ) -> None:
+        if self._chat is None:
+            return
+
+        from chat.types import Author
+
+        user_id = payload.get("user_id", "")
+        is_me = bool(self._bot_user_id and user_id == self._bot_user_id)
+        author = Author(
+            user_id=user_id,
+            user_name=payload.get("user_name", user_id) or user_id,
+            full_name=payload.get("user_name", user_id) or user_id,
+            is_bot=False,
+            is_me=is_me,
+        )
+        channel = payload.get("channel_id", "")
+        channel_id_full = f"slack:{channel}" if channel else ""
+
+        event: dict[str, Any] = {
+            "adapter": self,
+            "command": payload.get("command", ""),
+            "text": payload.get("text", ""),
+            "channelId": channel_id_full,
+            "triggerId": payload.get("trigger_id"),
+            "user": author,
+            "raw": payload,
+        }
+        self._chat.process_slash_command(event, options)
+
+    # ------------------------------------------------------------------ outbound
+
+    async def post_message(self, thread_id: str, message: Any) -> dict[str, Any]:
+        """Post a message to a Slack thread / channel.
+
+        Accepts the :class:`AdapterPostableMessage` union (str / PostableRaw /
+        PostableMarkdown / PostableAst / card). Returns a :class:`RawMessage`
+        dict.
+        """
+
+        decoded = decode_thread_id(thread_id)
+        channel = decoded["channel"]
+        thread_ts = decoded.get("threadTs") or None
+
+        text, blocks = self._postable_to_slack(message)
+
+        try:
+            response = await self.client.chat_postMessage(
+                channel=channel,
+                text=text or " ",
+                blocks=blocks,
+                thread_ts=thread_ts,
+            )
+        except Exception as err:  # pragma: no cover - re-raised below
+            self._translate_slack_error(err)
+            raise
+
+        response_data = response.get("message") if isinstance(response, dict) else None
+        ts = (response.get("ts") if isinstance(response, dict) else None) or (
+            response_data.get("ts") if isinstance(response_data, dict) else None
+        )
+        result_channel = response.get("channel") if isinstance(response, dict) else channel
+        returned_thread_ts = thread_ts or ts
+        result_thread_id = encode_thread_id(
+            {"channel": result_channel or channel, "threadTs": returned_thread_ts or ""}
+        )
+        return {
+            "id": ts or "",
+            "raw": response_data or response,
+            "threadId": result_thread_id,
+        }
+
+    async def edit_message(
+        self,
+        thread_id: str,
+        message_id: str,
+        message: Any,
+    ) -> dict[str, Any]:
+        """Edit an existing Slack message via ``chat.update``."""
+
+        decoded = decode_thread_id(thread_id)
+        channel = decoded["channel"]
+        text, blocks = self._postable_to_slack(message)
+
+        try:
+            response = await self.client.chat_update(
+                channel=channel,
+                ts=message_id,
+                text=text or " ",
+                blocks=blocks,
+            )
+        except Exception as err:  # pragma: no cover - re-raised below
+            self._translate_slack_error(err)
+            raise
+
+        return {
+            "id": message_id,
+            "raw": response,
+            "threadId": thread_id,
+        }
+
+    async def delete_message(self, thread_id: str, message_id: str) -> None:
+        """Delete a Slack message via ``chat.delete``."""
+
+        decoded = decode_thread_id(thread_id)
+        try:
+            await self.client.chat_delete(channel=decoded["channel"], ts=message_id)
+        except Exception as err:
+            self._translate_slack_error(err)
+            raise
+
+    async def add_reaction(
+        self,
+        thread_id: str,
+        message_id: str,
+        emoji: str,
+    ) -> None:
+        """Add a reaction to a Slack message via ``reactions.add``."""
+
+        from chat.emoji import default_emoji_resolver
+
+        decoded = decode_thread_id(thread_id)
+        slack_emoji = default_emoji_resolver.to_slack(emoji)
+        try:
+            await self.client.reactions_add(
+                channel=decoded["channel"],
+                timestamp=message_id,
+                name=slack_emoji,
+            )
+        except Exception as err:
+            self._translate_slack_error(err)
+            raise
+
+    async def remove_reaction(
+        self,
+        thread_id: str,
+        message_id: str,
+        emoji: str,
+    ) -> None:
+        """Remove a reaction from a Slack message via ``reactions.remove``."""
+
+        from chat.emoji import default_emoji_resolver
+
+        decoded = decode_thread_id(thread_id)
+        slack_emoji = default_emoji_resolver.to_slack(emoji)
+        try:
+            await self.client.reactions_remove(
+                channel=decoded["channel"],
+                timestamp=message_id,
+                name=slack_emoji,
+            )
+        except Exception as err:
+            self._translate_slack_error(err)
+            raise
+
+    async def post_channel_message(
+        self,
+        channel_id: str,
+        message: Any,
+    ) -> dict[str, Any]:
+        """Post a top-level (non-threaded) message to a Slack channel."""
+
+        # ``channel_id`` is ``slack:{channel}`` at the adapter boundary.
+        parts = channel_id.split(":", 1)
+        channel = parts[1] if len(parts) == 2 else channel_id
+        thread_id = encode_thread_id({"channel": channel, "threadTs": ""})
+        return await self.post_message(thread_id, message)
+
+    async def fetch_messages(
+        self,
+        thread_id: str,
+        options: Any | None = None,
+    ) -> dict[str, Any]:
+        """Fetch messages from a Slack thread via ``conversations.replies``."""
+
+        decoded = decode_thread_id(thread_id)
+        limit = None
+        cursor = None
+        if isinstance(options, dict):
+            limit = options.get("limit")
+            cursor = options.get("cursor")
+        kwargs: dict[str, Any] = {
+            "channel": decoded["channel"],
+            "ts": decoded.get("threadTs") or "",
+        }
+        if limit is not None:
+            kwargs["limit"] = limit
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+        try:
+            response = await self.client.conversations_replies(**kwargs)
+        except Exception as err:
+            self._translate_slack_error(err)
+            raise
+        return {
+            "messages": response.get("messages", []),
+            "nextCursor": (response.get("response_metadata") or {}).get("next_cursor") or None,
+        }
+
+    async def fetch_channel_info(self, channel_id: str) -> dict[str, Any]:
+        """Fetch Slack channel info via ``conversations.info``."""
+
+        parts = channel_id.split(":", 1)
+        channel = parts[1] if len(parts) == 2 else channel_id
+        try:
+            response = await self.client.conversations_info(channel=channel)
+        except Exception as err:
+            self._translate_slack_error(err)
+            raise
+        info = response.get("channel") or {}
+        return {
+            "id": channel_id,
+            "name": info.get("name") or f"#{channel}",
+            "isDM": bool(info.get("is_im")),
+            "metadata": info,
+        }
+
+    async def fetch_channel_messages(
+        self,
+        channel_id: str,
+        options: Any | None = None,
+    ) -> dict[str, Any]:
+        """Fetch the top-level history for a channel via ``conversations.history``."""
+
+        parts = channel_id.split(":", 1)
+        channel = parts[1] if len(parts) == 2 else channel_id
+        kwargs: dict[str, Any] = {"channel": channel}
+        if isinstance(options, dict):
+            if options.get("limit") is not None:
+                kwargs["limit"] = options["limit"]
+            if options.get("cursor") is not None:
+                kwargs["cursor"] = options["cursor"]
+        try:
+            response = await self.client.conversations_history(**kwargs)
+        except Exception as err:
+            self._translate_slack_error(err)
+            raise
+        return {
+            "messages": response.get("messages", []),
+            "nextCursor": (response.get("response_metadata") or {}).get("next_cursor") or None,
+        }
+
+    async def list_threads(
+        self,
+        channel_id: str,
+        options: Any | None = None,
+    ) -> dict[str, Any]:
+        """Enumerate threads in a channel. Slack has no first-class endpoint —
+        upstream lists history and filters messages with ``reply_count > 0``.
+        """
+
+        result = await self.fetch_channel_messages(channel_id, options)
+        threads = [m for m in result.get("messages", []) if m.get("reply_count")]
+        return {
+            "threads": threads,
+            "nextCursor": result.get("nextCursor"),
+        }
+
+    async def subscribe(self, thread_id: str) -> None:
+        """Subscribe the bot to a thread — no-op on Slack (subscription is
+        implicit via message posting + ``conversations.mark``).
+        """
+
+        return None
+
+    async def unsubscribe(self, thread_id: str) -> None:
+        """Unsubscribe — no-op on Slack (same reasoning as :meth:`subscribe`)."""
+
+        return None
+
+    async def open_dm(self, user_id: str) -> str:
+        """Open a DM conversation with ``user_id`` and return the thread ID."""
+
+        try:
+            response = await self.client.conversations_open(users=user_id)
+        except Exception as err:
+            self._translate_slack_error(err)
+            raise
+        channel = (response.get("channel") or {}).get("id", "")
+        return encode_thread_id({"channel": channel, "threadTs": ""})
+
+    async def open_modal(
+        self,
+        trigger_id: str,
+        view: Any,
+        context_id: str | None = None,
+    ) -> Any:
+        """Open a Slack modal via ``views.open``."""
+
+        from .modals import encode_modal_metadata, modal_to_slack_view
+
+        slack_view = modal_to_slack_view(view)
+        if context_id is not None:
+            meta_raw = encode_modal_metadata({"contextId": context_id})
+            if meta_raw is not None:
+                slack_view["private_metadata"] = meta_raw
+
+        try:
+            return await self.client.views_open(trigger_id=trigger_id, view=slack_view)
+        except Exception as err:
+            self._translate_slack_error(err)
+            raise
+
+    async def start_typing(self, thread_id: str) -> None:
+        """Slack has no public typing-indicator API in the Web API — no-op.
+
+        Socket-mode / RTM can send ``typing`` events but the Bolt / Events API
+        surface used here doesn't expose it. Upstream is also a no-op.
+        """
+
+        return None
+
+    async def stream(
+        self,
+        thread_id: str,
+        chunks: AsyncIterable[str],
+        options: Any | None = None,
+    ) -> dict[str, Any]:
+        """Stream ``chunks`` to a Slack message, editing it periodically.
+
+        Mirrors upstream ``StreamingMarkdownRenderer`` semantics:
+
+        1. Post an initial placeholder message (the returned ``ts``).
+        2. Accumulate chunks into a buffer. Every ``streaming_update_interval_ms``
+           (default 500ms via chat config, 500ms here) update the message.
+        3. On stream close, send the final update with the accumulated text.
+        """
+
+        interval_ms = 500
+        if isinstance(options, dict) and options.get("streamingUpdateIntervalMs") is not None:
+            interval_ms = int(options["streamingUpdateIntervalMs"])
+        placeholder = "..."
+        if isinstance(options, dict) and options.get("placeholder") is not None:
+            placeholder = str(options["placeholder"])
+
+        # Step 1: post placeholder.
+        initial = await self.post_message(thread_id, {"markdown": placeholder})
+        message_id = initial["id"]
+
+        accumulated = ""
+        last_update = time.monotonic()
+        interval_s = max(interval_ms, 1) / 1000.0
+
+        try:
+            async for chunk in chunks:
+                accumulated += chunk
+                now = time.monotonic()
+                if now - last_update >= interval_s:
+                    await self.edit_message(
+                        thread_id, message_id, {"markdown": accumulated or placeholder}
+                    )
+                    last_update = now
+        except asyncio.CancelledError:
+            raise
+        # Final update with the complete text.
+        final = await self.edit_message(
+            thread_id, message_id, {"markdown": accumulated or placeholder}
+        )
+        # Preserve the message ID from the original post.
+        final["id"] = message_id
+        return final
+
+    # ------------------------------------------------------------------ helpers
+
+    def _postable_to_slack(self, message: Any) -> tuple[str, list[dict[str, Any]] | None]:
+        """Convert an :class:`AdapterPostableMessage` to ``(text, blocks)``.
+
+        ``blocks`` is ``None`` when the message is plain mrkdwn (Slack accepts
+        ``text`` alone). Cards map to Block Kit via :func:`card_to_block_kit`;
+        markdown / ast inputs are rendered via :class:`SlackFormatConverter`.
+        """
+
+        # Plain string → mrkdwn text.
+        if isinstance(message, str):
+            return self.format_converter.render_postable(message), None
+
+        if not isinstance(message, dict):
+            return str(message), None
+
+        # Card element (has ``children`` and card-shaped metadata).
+        if "children" in message and any(k in message for k in ("title", "subtitle", "imageUrl")):
+            from .cards import card_to_block_kit, card_to_fallback_text
+
+            blocks = card_to_block_kit(message)
+            text = card_to_fallback_text(message)
+            return text, blocks
+
+        # Raw / markdown / AST postable.
+        if "raw" in message:
+            return str(message["raw"]), None
+        if "markdown" in message:
+            rendered = self.format_converter.render_postable({"markdown": message["markdown"]})
+            return rendered, None
+        if "ast" in message:
+            rendered = self.format_converter.render_postable({"ast": message["ast"]})
+            return rendered, None
+
+        # Fallback — just JSON-ify. Upstream raises here but we stay lenient.
+        return json.dumps(message), None
+
+    def _translate_slack_error(self, err: Exception) -> None:
+        """Translate a :class:`slack_sdk.errors.SlackApiError` to chat errors.
+
+        Raises :class:`RateLimitError` / :class:`AuthenticationError` /
+        :class:`ChatError`. No-ops on non-Slack errors — the caller re-raises.
+        """
+
+        from chat.errors import ChatError, RateLimitError
+
+        # Lazy import — slack_sdk is an optional dep.
+        try:
+            from slack_sdk.errors import SlackApiError
+        except ImportError:  # pragma: no cover
+            return
+
+        if not isinstance(err, SlackApiError):
+            return
+
+        response = getattr(err, "response", None)
+        slack_error = ""
+        if response is not None:
+            slack_error = (
+                response.get("error")
+                if isinstance(response, dict)
+                else getattr(response, "data", {}).get("error", "")
+            ) or ""
+
+        if slack_error == "ratelimited":
+            retry_after = None
+            headers = (
+                response.get("headers")
+                if isinstance(response, dict)
+                else getattr(response, "headers", {})
+            ) or {}
+            retry_header = headers.get("Retry-After") or headers.get("retry-after")
+            if retry_header:
+                with contextlib.suppress(TypeError, ValueError):
+                    retry_after = int(retry_header) * 1000
+            raise RateLimitError(
+                f"Slack rate limit hit: {slack_error}",
+                retry_after_ms=retry_after,
+                cause=err,
+            ) from err
+
+        if slack_error in ("invalid_auth", "not_authed", "token_revoked", "account_inactive"):
+            raise AuthenticationError("slack", f"Slack auth failed: {slack_error}") from err
+
+        # Fallback — wrap in a generic ChatError so callers don't leak the
+        # slack_sdk exception type (mirrors upstream behavior).
+        raise ChatError(
+            f"Slack API error: {slack_error or str(err)}", "SLACK_API_ERROR", cause=err
+        ) from err
+
+
+# Keep the unused import warning at bay for ``AdapterRateLimitError`` — exported
+# for compatibility with adapter-shared consumers that reach in for this symbol.
+_ = AdapterRateLimitError
 
 
 # ---------------------------------------------------------------------------
