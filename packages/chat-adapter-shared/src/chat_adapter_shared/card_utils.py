@@ -138,8 +138,7 @@ def _child_to_fallback_text(
         return "\n".join(
             t
             for t in (
-                _child_to_fallback_text(c, convert_text)
-                for c in _get(child, "children", []) or []
+                _child_to_fallback_text(c, convert_text) for c in _get(child, "children", []) or []
             )
             if t
         )
