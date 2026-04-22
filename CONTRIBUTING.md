@@ -65,6 +65,37 @@ scripts/                        # dev helpers (check/format/test/typecheck)
 
 Each package has its own `pyproject.toml`, `src/<module>/`, and `tests/`. The top-level `pyproject.toml` declares the `uv` workspace and shared dev dependencies.
 
+### Per-package test isolation
+
+Unit tests for each package live under `packages/<pkg>/tests/` (plus inline `_test.py` files under `src/`). Run a single package's suite in isolation:
+
+```bash
+uv run pytest packages/chat-adapter-slack
+uv run pytest packages/chat-adapter-state-pg
+```
+
+This matters during development because some suites load heavy optional deps (`asyncpg`, `redis.asyncio`, `msal`, …) only when imported. Filtering to a single package avoids unrelated import-time surprises.
+
+### Integration test env gating
+
+Integration tests against live services (Slack, Teams, Redis, Postgres, …) are **opt-in** and guarded by environment variables. A missing value produces a `pytest.skip`, so the default `uv run pytest packages/` on a laptop stays green.
+
+| Backend      | Env var             |
+| ------------ | ------------------- |
+| Slack        | `SLACK_TOKEN`       |
+| Teams        | `TEAMS_APP_ID`      |
+| Google Chat  | `GCHAT_PROJECT`     |
+| Discord      | `DISCORD_TOKEN`     |
+| GitHub       | `GITHUB_TOKEN`      |
+| Linear       | `LINEAR_API_KEY`    |
+| Telegram     | `TELEGRAM_TOKEN`    |
+| WhatsApp     | `WHATSAPP_TOKEN`    |
+| Redis        | `REDIS_URL`         |
+| ioredis      | `REDIS_URL`         |
+| Postgres     | `POSTGRES_URL`      |
+
+Helpers live in `chat_integration_tests._env` — `require_backend("redis")` returns the URL or skips the current test. New integration tests should use these helpers rather than reading `os.environ` directly.
+
 ## Commit style
 
 - One logical change per commit.
