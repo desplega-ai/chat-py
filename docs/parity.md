@@ -115,7 +115,7 @@ Every adapter's `handle_webhook` + outbound message surface, as of the DES-196 p
 | discord   | full           | full | full | full   | full  | full      | HTTP interactions; modals stubbed (Discord has no modal surface). |
 | github    | full           | full | full | full   | stub  | full      | Issue-comment reactions via GitHub reactions API (limited set).  |
 | teams     | full           | full | full | full   | stub  | full      | 7 deliberate stubs — see below.                                  |
-| linear    | full           | full | full | full   | stub  | full      | `add_reaction` / `remove_reaction` stubbed (Linear has no surface). |
+| linear    | full           | full | full | full   | partial | full    | `add_reaction` is full (Linear ``reactionCreate`` GraphQL); `remove_reaction` is stubbed — see below. |
 | telegram  | full           | full | full | full   | full  | full      | 1 deliberate stub — see below.                                   |
 | whatsapp  | full           | full | full | full   | full  | full      | DM-only (WhatsApp Cloud API); 2 deliberate stubs — see below.    |
 
@@ -145,6 +145,11 @@ These methods are declared on the adapter but raise `chat.errors.NotImplementedE
   - `open_modal` — WhatsApp has no modal surface; use interactive messages (buttons / list) instead. Raises `chat.NotImplementedError(feature="open_modal")`.
 - **`chat-adapter-telegram`** — 1 site in `packages/chat-adapter-telegram/src/chat_adapter_telegram/adapter.py` (approx. `:584`):
   - Telegram channel admin surface (upstream parity: same stub state).
+- **`chat-adapter-linear`** — 7 sites in `packages/chat-adapter-linear/src/chat_adapter_linear/adapter.py` (added in DES-196 phase 8):
+  - `remove_reaction` — Linear's GraphQL surface requires a reaction-id lookup before `reactionDelete`; upstream does not implement it either. Raises `chat.NotImplementedError(feature="removeReaction")`. `add_reaction` is fully implemented via `reactionCreate`.
+  - `post_channel_message` / `fetch_channel_info` / `fetch_channel_messages` / `list_threads` — Linear has no flat channel surface; comments are always issue-scoped. Each raises `chat.NotImplementedError` with a matching `feature` attribute.
+  - `open_dm` — Linear has no DM surface. Raises `chat.NotImplementedError(feature="openDM")`.
+  - `open_modal` — Linear has no modal surface. Raises `chat.NotImplementedError(feature="openModal")`.
 
 ## Entrypoints not yet ported
 

@@ -520,10 +520,20 @@ class TestReactions:
         assert sent["variables"]["input"]["emoji"] == "thumbsup"
 
     @pytest.mark.asyncio
-    async def test_remove_reaction_is_noop(self) -> None:
+    async def test_remove_reaction_raises_chat_not_implemented(self) -> None:
+        """DES-196 phase 8: Linear has no reaction-removal GraphQL surface.
+
+        Upgraded from a silent warning no-op to a
+        :class:`chat.errors.NotImplementedError` stub so callers see the
+        limitation explicitly. Pinned in ``docs/parity.md``.
+        """
+
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
         adapter = _make_adapter()
-        # Should not raise
-        await adapter.remove_reaction("linear:issue-1", "c-1", "thumbsup")
+        with pytest.raises(ChatNotImplementedError) as excinfo:
+            await adapter.remove_reaction("linear:issue-1", "c-1", "thumbsup")
+        assert excinfo.value.feature == "removeReaction"
 
 
 class TestTyping:
