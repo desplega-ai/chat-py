@@ -79,16 +79,19 @@ See the [Getting Started guide](docs/getting-started.md) for a full walkthrough 
 
 ## Supported platforms
 
-| Platform          | Package                        | Mentions | Reactions | Cards | Modals | Streaming | DMs |
-| ----------------- | ------------------------------ | -------- | --------- | ----- | ------ | --------- | --- |
-| Slack             | `chat-adapter-slack`           | Yes      | Yes       | Yes   | Yes    | Native    | Yes |
-| Microsoft Teams   | `chat-adapter-teams`           | Yes      | Read-only | Yes   | No     | Post+Edit | Yes |
-| Google Chat       | `chat-adapter-gchat`           | Yes      | Yes       | Yes   | No     | Post+Edit | Yes |
-| Discord           | `chat-adapter-discord`         | Yes      | Yes       | Yes   | No     | Post+Edit | Yes |
-| Telegram          | `chat-adapter-telegram`        | Yes      | Yes       | Partial | No   | Post+Edit | Yes |
-| GitHub            | `chat-adapter-github`          | Yes      | Yes       | No    | No     | No        | No  |
-| Linear            | `chat-adapter-linear`          | Yes      | Yes       | No    | No     | No        | No  |
-| WhatsApp          | `chat-adapter-whatsapp`        | N/A      | Yes       | Partial | No   | No        | Yes |
+| Platform          | Package                        | Status   | Mentions | Reactions | Cards | Modals | Streaming | DMs |
+| ----------------- | ------------------------------ | -------- | -------- | --------- | ----- | ------ | --------- | --- |
+| Slack             | `chat-adapter-slack`           | Shipped  | Yes      | Yes       | Yes   | Yes    | Native    | Yes |
+| Microsoft Teams   | `chat-adapter-teams`           | Shipped¹ | Yes      | Read-only | Yes   | No     | Post+Edit | Yes |
+| Google Chat       | `chat-adapter-gchat`           | Shipped  | Yes      | Yes       | Yes   | No     | Post+Edit | Yes |
+| Discord           | `chat-adapter-discord`         | Shipped  | Yes      | Yes       | Yes   | No     | Post+Edit | Yes |
+| GitHub            | `chat-adapter-github`          | Shipped  | Yes      | Yes       | No    | No     | No        | No  |
+| Linear            | `chat-adapter-linear`          | Shipped  | Yes      | Yes       | No    | No     | No        | No  |
+| Telegram          | `chat-adapter-telegram`        | **Stub**²| —        | —         | —     | —      | —         | —   |
+| WhatsApp          | `chat-adapter-whatsapp`        | **Stub**²| —        | —         | —     | —      | —         | —   |
+
+¹ Two known gaps raise at import/call time: the Graph API conversation reader and certificate-based auth. See [`CHANGELOG.md`](CHANGELOG.md).
+² v0.1.0 ships placeholder stubs for Telegram (DES-182) and WhatsApp (DES-183) — import is safe but no adapter logic yet. The package surface and README describe the planned feature set.
 
 ## Features
 
