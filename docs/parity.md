@@ -143,8 +143,10 @@ These methods are declared on the adapter but raise `chat.errors.NotImplementedE
   - `delete_message` — WhatsApp Cloud API has no delete endpoint. Raises `chat.NotImplementedError(feature="deleteMessage")`.
   - `post_channel_message` / `fetch_channel_info` / `fetch_channel_messages` / `list_threads` — WhatsApp Cloud API is 1:1 DM-only; there is no channel surface. Each raises `chat.NotImplementedError` with a matching `feature` attribute.
   - `open_modal` — WhatsApp has no modal surface; use interactive messages (buttons / list) instead. Raises `chat.NotImplementedError(feature="open_modal")`.
-- **`chat-adapter-telegram`** — 1 site in `packages/chat-adapter-telegram/src/chat_adapter_telegram/adapter.py` (approx. `:584`):
-  - Telegram channel admin surface (upstream parity: same stub state).
+- **`chat-adapter-telegram`** — 3 sites in `packages/chat-adapter-telegram/src/chat_adapter_telegram/adapter.py`:
+  - `edit_message` (approx. `:584`) — Telegram's `editMessageText` can return `true` (boolean) instead of a full `Message` object when the edit succeeds without any observable change. When that happens *and* the cached message for the edited id has also been evicted, we cannot reconstruct the updated `Message` locally. Raises `chat.NotImplementedError(feature="editMessage")`. Upstream has the same stub state — see `packages/adapter-telegram/src/index.ts` in `vercel/chat`. In practice callers should treat this as a warning rather than a hard failure and retry with `force=True`.
+  - `open_modal` — Telegram has no modal surface; use inline keyboards via cards. Raises `chat.NotImplementedError(feature="openModal")`.
+  - `stream` — streaming-edit surface not ported (upstream also leaves this unimplemented — Telegram's edit rate-limits make naive streaming impractical). Raises `chat.NotImplementedError(feature="stream")`.
 - **`chat-adapter-linear`** — 7 sites in `packages/chat-adapter-linear/src/chat_adapter_linear/adapter.py` (added in DES-196 phase 8):
   - `remove_reaction` — Linear's GraphQL surface requires a reaction-id lookup before `reactionDelete`; upstream does not implement it either. Raises `chat.NotImplementedError(feature="removeReaction")`. `add_reaction` is fully implemented via `reactionCreate`.
   - `post_channel_message` / `fetch_channel_info` / `fetch_channel_messages` / `list_threads` — Linear has no flat channel surface; comments are always issue-scoped. Each raises `chat.NotImplementedError` with a matching `feature` attribute.
