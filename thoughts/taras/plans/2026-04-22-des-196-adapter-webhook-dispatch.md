@@ -4,7 +4,7 @@ title: "[chat-py] implement adapter webhook dispatch (Part B)"
 status: in-progress
 created: 2026-04-22
 last_updated: 2026-04-22
-last_updated_by: claude (phase 2)
+last_updated_by: claude (phase 3)
 author: taras
 autonomy: critical
 style: tdd
@@ -667,7 +667,7 @@ Each exits with a clear "missing env vars" message when creds aren't set. Provid
 - [x] `chat.types.Adapter` is a `@runtime_checkable` `Protocol` (no more `Any`).
 - [ ] `isinstance(create_*_adapter(), Adapter)` returns `True` for all 8 adapters.
 - [ ] `Chat.handle_webhook("slack", ...)` works end-to-end against the real Slack Events API (Taras manual E2E).
-- [ ] `Chat.handle_webhook("gchat", ...)` works end-to-end against a Pub/Sub push or HTTP webhook (integration tested, not live).
+- [x] `Chat.handle_webhook("gchat", ...)` works end-to-end against a Pub/Sub push or HTTP webhook (integration tested, not live).
 - [ ] Skeletons for `examples/e2e/{discord,github,whatsapp,teams,linear,telegram,gchat}/echo.py` exist and `ast.parse` cleanly.
 - [ ] Every intentional `NotImplementedError` stub (Teams 7, WhatsApp 2, Telegram 1) has a pinned test + `parity.md` entry.
 - [ ] Full validation suite green: `ruff check`, `ruff format --check`, `mypy packages/chat/src`, `pytest packages/`.
