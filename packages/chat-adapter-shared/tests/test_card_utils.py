@@ -181,10 +181,7 @@ class TestCardToFallbackText:
 
     def test_uses_double_line_breaks_when_specified(self) -> None:
         card = Card(title="Title", subtitle="Subtitle")
-        assert (
-            card_to_fallback_text(card, {"line_break": "\n\n"})
-            == "*Title*\n\nSubtitle"
-        )
+        assert card_to_fallback_text(card, {"line_break": "\n\n"}) == "*Title*\n\nSubtitle"
 
     def test_formats_text_children(self) -> None:
         card = Card(title="Card", children=[CardText("Some content")])
@@ -193,10 +190,12 @@ class TestCardToFallbackText:
     def test_formats_fields(self) -> None:
         card = Card(
             children=[
-                Fields([
-                    Field(label="Name", value="John"),
-                    Field(label="Age", value="30"),
-                ]),
+                Fields(
+                    [
+                        Field(label="Name", value="John"),
+                        Field(label="Age", value="30"),
+                    ]
+                ),
             ],
         )
         assert card_to_fallback_text(card) == "Name: John\nAge: 30"
@@ -208,10 +207,12 @@ class TestCardToFallbackText:
     def test_excludes_actions_from_fallback_text(self) -> None:
         card = Card(
             children=[
-                Actions([
-                    Button(id="ok", label="OK"),
-                    Button(id="cancel", label="Cancel"),
-                ]),
+                Actions(
+                    [
+                        Button(id="ok", label="OK"),
+                        Button(id="cancel", label="Cancel"),
+                    ]
+                ),
             ],
         )
         assert card_to_fallback_text(card) == ""
@@ -243,14 +244,18 @@ class TestCardToFallbackText:
             children=[
                 CardText("Thank you for your purchase!"),
                 Divider(),
-                Fields([
-                    Field(label="Status", value="Processing"),
-                    Field(label="Total", value="$99.99"),
-                ]),
-                Actions([
-                    Button(id="view", label="View Order", style="primary"),
-                    Button(id="cancel", label="Cancel", style="danger"),
-                ]),
+                Fields(
+                    [
+                        Field(label="Status", value="Processing"),
+                        Field(label="Total", value="$99.99"),
+                    ]
+                ),
+                Actions(
+                    [
+                        Button(id="view", label="View Order", style="primary"),
+                        Button(id="cancel", label="Cancel", style="danger"),
+                    ]
+                ),
             ],
         )
 

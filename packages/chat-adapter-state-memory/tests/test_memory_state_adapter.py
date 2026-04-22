@@ -73,11 +73,13 @@ class TestLocking:
         lock = await adapter.acquire_lock("thread1", 5000)
         assert lock is not None
 
-        await adapter.release_lock({
-            "thread_id": "thread1",
-            "token": "fake-token",
-            "expires_at": 0,
-        })
+        await adapter.release_lock(
+            {
+                "thread_id": "thread1",
+                "token": "fake-token",
+                "expires_at": 0,
+            }
+        )
 
         # Original lock should still be held
         lock2 = await adapter.acquire_lock("thread1", 5000)
@@ -86,9 +88,7 @@ class TestLocking:
         # Clean up
         await adapter.release_lock(lock)
 
-    async def test_should_allow_re_locking_after_expiry(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_allow_re_locking_after_expiry(self, adapter: MemoryStateAdapter) -> None:
         lock1 = await adapter.acquire_lock("thread1", 10)  # 10ms TTL
 
         await asyncio.sleep(0.020)  # 20ms
@@ -127,9 +127,7 @@ class TestLocking:
         result = await adapter.force_release_lock("nonexistent")
         assert result is None
 
-    async def test_should_not_extend_an_expired_lock(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_not_extend_an_expired_lock(self, adapter: MemoryStateAdapter) -> None:
         lock = await adapter.acquire_lock("thread1", 10)
         assert lock is not None
 
@@ -152,26 +150,20 @@ class TestSetIfNotExists:
         assert result is True
         assert await adapter.get("key1") == "value1"
 
-    async def test_should_not_overwrite_an_existing_key(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_not_overwrite_an_existing_key(self, adapter: MemoryStateAdapter) -> None:
         await adapter.set_if_not_exists("key1", "first")
         result = await adapter.set_if_not_exists("key1", "second")
         assert result is False
         assert await adapter.get("key1") == "first"
 
-    async def test_should_allow_setting_after_ttl_expiry(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_allow_setting_after_ttl_expiry(self, adapter: MemoryStateAdapter) -> None:
         await adapter.set_if_not_exists("key1", "first", 10)
         await asyncio.sleep(0.020)
         result = await adapter.set_if_not_exists("key1", "second")
         assert result is True
         assert await adapter.get("key1") == "second"
 
-    async def test_should_respect_ttl_on_the_new_value(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_respect_ttl_on_the_new_value(self, adapter: MemoryStateAdapter) -> None:
         await adapter.set_if_not_exists("key1", "value", 10)
         await asyncio.sleep(0.020)
         assert await adapter.get("key1") is None
@@ -183,9 +175,7 @@ class TestSetIfNotExists:
 
 
 class TestAppendToListGetList:
-    async def test_should_append_and_retrieve_list_items(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_append_and_retrieve_list_items(self, adapter: MemoryStateAdapter) -> None:
         await adapter.append_to_list("list1", {"id": 1})
         await adapter.append_to_list("list1", {"id": 2})
 
@@ -228,18 +218,14 @@ class TestAppendToListGetList:
         result = await adapter.get_list("list1")
         assert result == [{"id": 1}, {"id": 2}]
 
-    async def test_should_keep_lists_isolated_by_key(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_keep_lists_isolated_by_key(self, adapter: MemoryStateAdapter) -> None:
         await adapter.append_to_list("list-a", "a")
         await adapter.append_to_list("list-b", "b")
 
         assert await adapter.get_list("list-a") == ["a"]
         assert await adapter.get_list("list-b") == ["b"]
 
-    async def test_should_start_fresh_after_expired_list(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_start_fresh_after_expired_list(self, adapter: MemoryStateAdapter) -> None:
         await adapter.append_to_list("list1", {"id": 1}, {"ttl_ms": 10})
         await asyncio.sleep(0.020)
 
@@ -353,9 +339,7 @@ class TestEnqueueDequeueQueueDepth:
         result = await adapter.dequeue("thread1")
         assert result["message"] == {"id": "m3"}
 
-    async def test_should_keep_queues_isolated_by_thread(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_keep_queues_isolated_by_thread(self, adapter: MemoryStateAdapter) -> None:
         await adapter.enqueue(
             "thread-a",
             {"message": {"id": "a1"}, "enqueued_at": 1000, "expires_at": 90000},
@@ -376,9 +360,7 @@ class TestEnqueueDequeueQueueDepth:
         rb = await adapter.dequeue("thread-b")
         assert rb["message"] == {"id": "b1"}
 
-    async def test_should_clear_queues_on_disconnect(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_clear_queues_on_disconnect(self, adapter: MemoryStateAdapter) -> None:
         await adapter.enqueue(
             "thread1",
             {"message": {"id": "m1"}, "enqueued_at": 1000, "expires_at": 90000},
@@ -403,9 +385,7 @@ class TestConnection:
         with pytest.raises(RuntimeError, match="not connected"):
             await new_adapter.subscribe("test")
 
-    async def test_should_clear_state_on_disconnect(
-        self, adapter: MemoryStateAdapter
-    ) -> None:
+    async def test_should_clear_state_on_disconnect(self, adapter: MemoryStateAdapter) -> None:
         await adapter.subscribe("thread1")
         await adapter.acquire_lock("thread1", 5000)
 

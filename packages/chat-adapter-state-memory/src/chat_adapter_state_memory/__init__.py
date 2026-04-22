@@ -281,11 +281,7 @@ class MemoryStateAdapter:
         cached = self._cache.get(key)
         list_value: list[Any]
 
-        if (
-            cached is not None
-            and cached.expires_at is not None
-            and cached.expires_at <= _now_ms()
-        ):
+        if cached is not None and cached.expires_at is not None and cached.expires_at <= _now_ms():
             list_value = []
         elif cached is not None and isinstance(cached.value, list):
             list_value = cached.value
@@ -363,9 +359,7 @@ class MemoryStateAdapter:
 
     def _ensure_connected(self) -> None:
         if not self._connected:
-            raise RuntimeError(
-                "MemoryStateAdapter is not connected. Call connect() first."
-            )
+            raise RuntimeError("MemoryStateAdapter is not connected. Call connect() first.")
 
     def _clean_expired_locks(self) -> None:
         now = _now_ms()
