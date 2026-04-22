@@ -6,7 +6,7 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.13"
 authors = [
-    { name = "Desplega Labs", email = "hello@desplega.ai" },
+    { name = "Desplega Labs", email = "contact@desplega.sh" },
 ]
 keywords = ["chat", "bot", "slack", "teams", "discord", "google-chat", "telegram", "github", "linear", "whatsapp"]
 classifiers = [
@@ -20,7 +20,7 @@ classifiers = [
 dependencies = ["chat-py", "asyncpg>=0.29"]
 
 [project.urls]
-Homepage = "https://github.com/desplega-ai/chat-py"
+Homepage = "https://desplega.sh"
 Repository = "https://github.com/desplega-ai/chat-py"
 Issues = "https://github.com/desplega-ai/chat-py/issues"
 

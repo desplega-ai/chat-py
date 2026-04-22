@@ -5,8 +5,10 @@ WhatsApp (Meta Cloud API) adapter for [`chat-py`](https://github.com/desplega-ai
 ## Install
 
 ```bash
-uv add chat-py-adapter-whatsapp
+uv add chat-py chat-py-adapter-whatsapp chat-py-adapter-state-memory
 ```
+
+Along with the core SDK and any `chat-py-adapter-state-*` (use `chat-py-adapter-state-redis` / `-state-pg` in production).
 
 ## Environment variables
 

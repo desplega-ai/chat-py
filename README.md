@@ -22,7 +22,7 @@ A lot of modern agent and backend work — LangGraph, DSPy, CrewAI, FastAPI serv
 
 ## Installation
 
-Install the core SDK and the adapters you need:
+A `chat-py` bot needs three pieces: the **core SDK** (`chat-py`), at least one **platform adapter** (`chat-py-adapter-<slack|teams|…>`), and exactly one **state adapter** (`chat-py-adapter-state-<memory|redis|ioredis|pg>`). The state adapter is not optional — it's where thread subscriptions, lock tokens, and dedupe/cache data live. Use `state-memory` for local development and one of the persistent backends in production.
 
 ```bash
 uv add chat-py
