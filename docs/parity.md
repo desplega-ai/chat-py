@@ -123,6 +123,10 @@ Every adapter's `handle_webhook` + outbound message surface, as of the DES-196 p
 
 These methods are declared on the adapter but raise `chat.errors.NotImplementedError` on call. They are pinned by tests in each adapter's `test_unsupported_features.py` (or equivalent) so behaviour can't silently change.
 
+- **`chat-adapter-discord`** — 1 site in `packages/chat-adapter-discord/src/chat_adapter_discord/adapter.py`:
+  - `open_modal` — Discord has no standalone modal-open surface; modals are delivered as responses to an interaction (`APPLICATION_MODAL`). Upstream does not wire `open_modal` for Discord either; we raise `chat.NotImplementedError(feature="modals")` to satisfy the Protocol.
+- **`chat-adapter-gchat`** — 1 site in `packages/chat-adapter-gchat/src/chat_adapter_gchat/adapter.py` (approx. `:1115`):
+  - `open_modal` — Google Chat has no Slack-style modal; use a Card v2 response instead. Raises `chat.NotImplementedError(feature="modals")` to satisfy the Protocol.
 - **`chat-adapter-teams`** — 7 sites in `packages/chat-adapter-teams/src/chat_adapter_teams/adapter.py` (approx. `:444-495`):
   - `read_thread` — upstream relies on `@microsoft/teams.apps`'s live dispatch which has no stable Python equivalent.
   - Certificate-based auth (`certificate` config) — scaffolded but not wired.

@@ -4,7 +4,7 @@ title: "[chat-py] implement adapter webhook dispatch (Part B)"
 status: in-progress
 created: 2026-04-22
 last_updated: 2026-04-22
-last_updated_by: claude (phase 3)
+last_updated_by: claude (phase 4)
 author: taras
 autonomy: critical
 style: tdd

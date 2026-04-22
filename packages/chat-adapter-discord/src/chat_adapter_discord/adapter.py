@@ -173,6 +173,8 @@ class DiscordAdapter:
     """
 
     name = "discord"
+    lock_scope: Literal["thread", "channel"] | None = "thread"
+    persist_message_history: bool = False
 
     def __init__(self, config: DiscordAdapterConfig | None = None) -> None:
         cfg: dict[str, Any] = dict(config or {})
@@ -247,6 +249,11 @@ class DiscordAdapter:
             await self._http_client.aclose()
             self._http_client = None
 
+    async def disconnect(self) -> None:
+        """Release the HTTP client if one was built. Alias for :meth:`close`."""
+
+        await self.close()
+
     # --------------------------------------------------------- thread id API
 
     def encode_thread_id(self, platform_data: DiscordThreadId) -> str:
@@ -260,6 +267,96 @@ class DiscordAdapter:
 
     def channel_id_from_thread_id(self, thread_id: str) -> str:
         return _channel_id_from_thread_id(thread_id)
+
+    def get_channel_visibility(self, channel_id: str) -> str:
+        """Discord channels are private by default (guild-scoped); DMs are private.
+
+        Discord doesn't expose a "public" visibility concept the way Slack does
+        (no ``is_private`` flag at the channel level for guild text channels),
+        so we conservatively return ``"unknown"`` for non-DM channels. Mirrors
+        the Google Chat adapter's treatment.
+        """
+
+        if self.is_dm(channel_id):
+            return "private"
+        return "unknown"
+
+    # --------------------------------------------------------- subscriptions
+
+    async def subscribe(self, thread_id: str) -> None:
+        """No-op — Discord subscription is handled at the `Chat` state layer.
+
+        Discord's Gateway / interactions surface doesn't expose a subscription
+        primitive; mirrors the Google Chat adapter's no-op.
+        """
+
+        return None
+
+    async def unsubscribe(self, thread_id: str) -> None:
+        return None
+
+    # ------------------------------------------------------------- modals
+
+    async def open_modal(self, trigger_id: str, view: Any) -> Any:
+        """Discord doesn't expose a Slack-style modal surface.
+
+        Discord has modal responses (``APPLICATION_MODAL``) tied to interaction
+        responses, not a standalone ``open_modal`` trigger. Raise the canonical
+        ``chat.NotImplementedError`` — pinned in ``docs/parity.md``.
+        """
+
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "Discord does not expose a standalone open_modal surface; respond "
+            "with a modal interaction response instead.",
+            feature="modals",
+        )
+
+    # ----------------------------------------------------------- streaming
+
+    async def stream(
+        self,
+        thread_id: str,
+        chunks: Any,
+        options: Any | None = None,
+    ) -> dict[str, Any]:
+        """Stream ``chunks`` to a Discord message, editing periodically.
+
+        Mirrors the Slack/GChat streaming shape: post placeholder, edit every
+        ``streamingUpdateIntervalMs``, flush on close.
+        """
+
+        import asyncio
+        import time
+
+        interval_ms = 500
+        if isinstance(options, dict) and options.get("streamingUpdateIntervalMs") is not None:
+            interval_ms = int(options["streamingUpdateIntervalMs"])
+        placeholder = "..."
+        if isinstance(options, dict) and options.get("placeholder") is not None:
+            placeholder = str(options["placeholder"])
+
+        initial = await self.post_message(thread_id, {"markdown": placeholder})
+        message_id = initial["id"]
+
+        accumulated = ""
+        last_update = time.monotonic()
+        interval_s = max(interval_ms, 1) / 1000.0
+
+        try:
+            async for chunk in chunks:
+                accumulated += str(chunk)
+                now = time.monotonic()
+                if now - last_update >= interval_s:
+                    await self.edit_message(
+                        thread_id, message_id, {"markdown": accumulated or placeholder}
+                    )
+                    last_update = now
+                    await asyncio.sleep(0)
+        finally:
+            await self.edit_message(thread_id, message_id, {"markdown": accumulated or placeholder})
+        return {"id": message_id, "raw": initial.get("raw"), "threadId": thread_id}
 
     # -------------------------------------------------------- webhook entry
 
@@ -383,16 +480,20 @@ class DiscordAdapter:
                 {"guildId": guild_id, "channelId": str(interaction_channel_id)}
             )
 
+        from chat.types import Author
+
+        author = Author(
+            user_id=str(user.get("id") or ""),
+            user_name=str(user.get("username") or ""),
+            full_name=str(user.get("global_name") or user.get("username") or ""),
+            is_bot=bool(user.get("bot", False)),
+            is_me=user.get("id") == self.application_id,
+        )
+
         action_event = {
             "actionId": custom_id,
             "value": custom_id,
-            "user": {
-                "userId": user.get("id"),
-                "userName": user.get("username"),
-                "fullName": user.get("global_name") or user.get("username"),
-                "isBot": bool(user.get("bot", False)),
-                "isMe": False,
-            },
+            "user": author,
             "messageId": message_id,
             "threadId": thread_id,
             "adapter": self,
@@ -460,16 +561,20 @@ class DiscordAdapter:
 
         command, text = parse_slash_command(command_name, data.get("options"))
 
+        from chat.types import Author
+
+        author = Author(
+            user_id=str(user.get("id") or ""),
+            user_name=str(user.get("username") or ""),
+            full_name=str(user.get("global_name") or user.get("username") or ""),
+            is_bot=bool(user.get("bot", False)),
+            is_me=user.get("id") == self.application_id,
+        )
+
         slash_command_event = {
             "command": command,
             "text": text,
-            "user": {
-                "userId": user.get("id"),
-                "userName": user.get("username"),
-                "fullName": user.get("global_name") or user.get("username"),
-                "isBot": bool(user.get("bot", False)),
-                "isMe": user.get("id") == self.application_id,
-            },
+            "user": author,
             "adapter": self,
             "raw": interaction,
             "channelId": channel_id,
@@ -619,6 +724,16 @@ class DiscordAdapter:
 
         raw_emoji = f"<:{emoji_name}:{emoji_data['id']}>" if emoji_data.get("id") else emoji_name
 
+        from chat.types import Author
+
+        reaction_author = Author(
+            user_id=str(user_info.get("id") or ""),
+            user_name=str(user_info.get("username") or ""),
+            full_name=str(user_info.get("username") or ""),
+            is_bot=user_info.get("bot") is True,
+            is_me=user_info.get("id") == self.application_id,
+        )
+
         reaction_event = {
             "adapter": self,
             "threadId": thread_id,
@@ -626,13 +741,7 @@ class DiscordAdapter:
             "emoji": normalized_emoji,
             "rawEmoji": raw_emoji,
             "added": added,
-            "user": {
-                "userId": user_info.get("id"),
-                "userName": user_info.get("username"),
-                "fullName": user_info.get("username"),
-                "isBot": user_info.get("bot") is True,
-                "isMe": user_info.get("id") == self.application_id,
-            },
+            "user": reaction_author,
             "raw": data,
         }
 
