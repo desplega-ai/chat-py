@@ -11,9 +11,36 @@ Run with ``uv run pytest packages/chat-integration-tests/tests/test_dispatch_mem
 
 from __future__ import annotations
 
+import asyncio
+import json
 from collections.abc import AsyncIterator
+from typing import Any
 
 import pytest
+
+# Phase 10 — cross-adapter ``Chat.handle_webhook`` dispatch matrix. The
+# helpers live beside this module because they register real adapters
+# (slack / gchat / discord / github / teams / linear / telegram / whatsapp)
+# rather than the duck-typed mock adapter used in the rest of this file.
+from _dispatch_matrix import (  # type: ignore[import-not-found]
+    DISCORD_INTERACTION_BODY,
+    GCHAT_MESSAGE_BODY,
+    GITHUB_ISSUE_COMMENT_BODY,
+    LINEAR_COMMENT_BODY,
+    SLACK_APP_MENTION_BODY,
+    TEAMS_MESSAGE_BODY,
+    TELEGRAM_MESSAGE_BODY,
+    WHATSAPP_MESSAGE_BODY,
+    build_bot_for,
+    make_discord_headers,
+    make_gchat_headers,
+    make_github_headers,
+    make_linear_headers,
+    make_slack_headers,
+    make_teams_headers,
+    make_telegram_headers,
+    make_whatsapp_headers,
+)
 from chat.errors import LockError
 from chat.mock_adapter import mock_logger
 from chat_adapter_state_memory import MemoryStateAdapter, create_memory_state
@@ -203,3 +230,108 @@ class TestMemoryMultiAdapter:
 
         assert len(spy.calls) == 3, "One mention per adapter should dispatch once"
         await chat.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 — cross-adapter ``Chat.handle_webhook`` dispatch matrix.
+#
+# One parametrised row per adapter routes a canned webhook body through
+# :meth:`Chat.handle_webhook` (name, body, headers) and asserts the correct
+# handler fired. This is the regression-catcher for any future adapter
+# refactor — if the dispatch surface drifts, this matrix goes red.
+# ---------------------------------------------------------------------------
+
+
+class TestChatHandleWebhookMatrix:
+    @pytest.mark.parametrize(
+        "adapter_name,body,make_headers,expected_handler",
+        [
+            (
+                "slack",
+                json.dumps(SLACK_APP_MENTION_BODY).encode(),
+                make_slack_headers,
+                "on_new_mention",
+            ),
+            (
+                "gchat",
+                json.dumps(GCHAT_MESSAGE_BODY).encode(),
+                make_gchat_headers,
+                "on_new_mention",
+            ),
+            (
+                "discord",
+                json.dumps(DISCORD_INTERACTION_BODY).encode(),
+                make_discord_headers,
+                "on_slash_command",
+            ),
+            (
+                "github",
+                json.dumps(GITHUB_ISSUE_COMMENT_BODY).encode(),
+                make_github_headers,
+                "on_new_mention",
+            ),
+            (
+                "whatsapp",
+                json.dumps(WHATSAPP_MESSAGE_BODY).encode(),
+                make_whatsapp_headers,
+                "on_direct_message",
+            ),
+            (
+                "teams",
+                TEAMS_MESSAGE_BODY,  # Teams adapter takes dict directly
+                make_teams_headers,
+                "on_new_mention",
+            ),
+            (
+                "linear",
+                json.dumps(LINEAR_COMMENT_BODY).encode(),
+                make_linear_headers,
+                "on_new_mention",
+            ),
+            (
+                "telegram",
+                json.dumps(TELEGRAM_MESSAGE_BODY).encode(),
+                make_telegram_headers,
+                "on_direct_message",
+            ),
+        ],
+    )
+    async def test_chat_routes_webhook_to_handler(
+        self,
+        adapter_name: str,
+        body: bytes | dict[str, Any],
+        make_headers: Any,
+        expected_handler: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        bot, log = build_bot_for(adapter_name, monkeypatch)
+
+        # Teams takes a dict payload; everything else is JSON bytes. The
+        # header builders always receive the serialized byte form so HMAC
+        # signatures align with what the adapter verifies.
+        if isinstance(body, (bytes, bytearray)):
+            header_body = bytes(body)
+            dispatch_body: Any = body
+        else:
+            header_body = json.dumps(body).encode()
+            dispatch_body = body
+
+        headers = make_headers(header_body)
+        status, _resp_headers, _resp_body = await bot.handle_webhook(
+            adapter_name, dispatch_body, headers
+        )
+        assert status == 200, f"{adapter_name}: expected 200 from handle_webhook, got {status}"
+
+        # Dispatch is fire-and-forget in several adapters; poll briefly so
+        # the awaited handler has a chance to run.
+        deadline = 2.0
+        start = asyncio.get_event_loop().time()
+        while not log.was_fired(expected_handler):
+            if asyncio.get_event_loop().time() - start > deadline:
+                break
+            await asyncio.sleep(0.02)
+
+        assert log.was_fired(expected_handler), (
+            f"{adapter_name}: expected '{expected_handler}' to fire, saw {log.fired!r}"
+        )
+        await bot.shutdown()

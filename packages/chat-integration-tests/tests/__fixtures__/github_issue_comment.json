@@ -1,0 +1,26 @@
+{
+  "_provenance": "Synthesized GitHub issue_comment.created webhook. Bot username fixed to chat-py-matrix-bot. IDs synthetic. Matches packages/chat-adapter-github/tests/test_dispatch.py. Captured for DES-196 phase 10, 2026-04.",
+  "action": "created",
+  "issue": {
+    "number": 42,
+    "title": "Sample issue"
+  },
+  "comment": {
+    "id": 987654321,
+    "body": "@chat-py-matrix-bot please echo this",
+    "user": {
+      "id": 12345,
+      "login": "alice",
+      "type": "User"
+    },
+    "created_at": "2026-04-22T12:00:00Z",
+    "updated_at": "2026-04-22T12:00:00Z"
+  },
+  "repository": {
+    "id": 1,
+    "name": "chat-py",
+    "full_name": "desplega-ai/chat-py",
+    "owner": {"id": 9, "login": "desplega-ai", "type": "Organization"}
+  },
+  "sender": {"id": 12345, "login": "alice", "type": "User"}
+}

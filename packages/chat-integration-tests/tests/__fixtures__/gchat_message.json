@@ -1,0 +1,18 @@
+{
+  "_provenance": "Synthesized Google Chat MESSAGE event (HTTP webhook shape). Space/user names scrubbed. Matches upstream packages/adapter-gchat/src/ dispatch tests. Captured for DES-196 phase 10, 2026-04.",
+  "type": "MESSAGE",
+  "space": {"name": "spaces/ABC", "type": "ROOM"},
+  "message": {
+    "name": "spaces/ABC/messages/m1",
+    "text": "@bot hello",
+    "argumentText": " hello",
+    "thread": {"name": "spaces/ABC/threads/T1"},
+    "space": {"name": "spaces/ABC", "type": "ROOM"},
+    "sender": {
+      "name": "users/user1",
+      "displayName": "Alice",
+      "type": "HUMAN"
+    },
+    "createTime": "2026-04-22T10:00:00Z"
+  }
+}

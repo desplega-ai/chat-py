@@ -1,0 +1,14 @@
+{
+  "_provenance": "Synthesized Slack app_mention event_callback. IDs scrubbed (U_BOT / U2 / C1 / ts 1234.5). Matches upstream packages/adapter-slack/src/__tests__/ event shapes. Captured for DES-196 phase 10, 2026-04.",
+  "type": "event_callback",
+  "team_id": "T_TEST",
+  "api_app_id": "A_TEST",
+  "event": {
+    "type": "app_mention",
+    "channel": "C1",
+    "user": "U2",
+    "text": "<@U_BOT> hello",
+    "ts": "1234.5",
+    "thread_ts": "1234.5"
+  }
+}

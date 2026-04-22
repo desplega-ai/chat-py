@@ -1,0 +1,22 @@
+{
+  "_provenance": "Synthesized Linear Comment webhook (action=create). Org/issue IDs synthetic, user profile URL scrubbed. Matches packages/chat-adapter-linear/tests/test_dispatch.py. Captured for DES-196 phase 10, 2026-04.",
+  "action": "create",
+  "type": "Comment",
+  "organizationId": "org-abc",
+  "url": "https://linear.app/acme/issue/ENG-42#comment-99",
+  "data": {
+    "id": "comment-99",
+    "body": "@chat-py-matrix-bot please echo this",
+    "issueId": "issue-ENG-42",
+    "parentId": null,
+    "createdAt": "2026-04-22T12:00:00.000Z",
+    "updatedAt": "2026-04-22T12:00:00.000Z",
+    "user": {
+      "id": "user-alice",
+      "name": "Alice Example",
+      "email": "alice@example.com",
+      "url": "https://linear.app/acme/profiles/alice",
+      "avatarUrl": null
+    }
+  }
+}

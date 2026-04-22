@@ -1,0 +1,22 @@
+{
+  "_provenance": "Synthesized Telegram direct-message update (chat.id positive = DM). User and update IDs synthetic. Matches packages/chat-adapter-telegram/tests/test_dispatch.py. Captured for DES-196 phase 10, 2026-04.",
+  "update_id": 10000001,
+  "message": {
+    "message_id": 42,
+    "date": 1714000000,
+    "chat": {
+      "id": 12345,
+      "type": "private",
+      "username": "alice_tg",
+      "first_name": "Alice"
+    },
+    "from": {
+      "id": 12345,
+      "is_bot": false,
+      "first_name": "Alice",
+      "last_name": "Example",
+      "username": "alice_tg"
+    },
+    "text": "hello from the dm"
+  }
+}

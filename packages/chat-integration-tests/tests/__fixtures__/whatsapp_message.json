@@ -1,0 +1,36 @@
+{
+  "_provenance": "Synthesized WhatsApp Cloud API messages webhook. Phone numbers synthetic, profile.name scrubbed. Matches packages/chat-adapter-whatsapp/tests/test_dispatch.py. Captured for DES-196 phase 10, 2026-04.",
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "100000000000000",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15551234567",
+              "phone_number_id": "1234567890"
+            },
+            "contacts": [
+              {
+                "profile": {"name": "Alice"},
+                "wa_id": "15557654321"
+              }
+            ],
+            "messages": [
+              {
+                "id": "wamid.TEST123",
+                "from": "15557654321",
+                "timestamp": "1714000000",
+                "type": "text",
+                "text": {"body": "please echo this"}
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
