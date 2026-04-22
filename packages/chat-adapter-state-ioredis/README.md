@@ -9,7 +9,7 @@ In Node.js, upstream ships two separate state packages — `@chat-sdk/state-redi
 ## Install
 
 ```bash
-uv add chat-adapter-state-ioredis
+uv add chat-py-adapter-state-ioredis
 ```
 
 ## Minimal example

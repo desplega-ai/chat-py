@@ -17,7 +17,34 @@ When in doubt, read upstream:
 
 If behavior in `chat-py` diverges from upstream, that's a bug unless it's documented in `docs/parity.md`.
 
+## Releases
+
+Full procedure in [`docs/releasing.md`](docs/releasing.md). The short version:
+
+- 14 of 15 packages publish under the `chat-py*` PyPI prefix; `chat-py-integration-tests` is workspace-only.
+- Import names (`import chat`, `import chat_adapter_slack`, …) are decoupled from PyPI dist names — don't confuse the two.
+- Always dry-run against TestPyPI before `uv publish`-ing to real PyPI. PyPI is write-once per version.
+- `CHANGELOG.md` drives release notes; no per-version release doc lives in the repo.
+
 ## Common tasks
+
+### Manual E2E scripts (examples/e2e/)
+
+Per-adapter, per-scenario scripts for hitting real provider APIs. They are **not** pytest tests. Each script is a self-contained `uv run python` invocation with its own docstring covering:
+
+- required env vars (the script `sys.exit()`s with a clear message if any are unset)
+- provider app/bot setup (scopes, events, webhook URL)
+- run command
+
+Shape:
+
+```bash
+uv sync --group e2e                                # fastapi + uvicorn + python-dotenv
+uv run python examples/e2e/slack/echo.py           # in one terminal
+ngrok http 8000                                    # in another; paste URL into provider
+```
+
+Scripts read `<repo-root>/.env` via `python-dotenv`; `.env` is gitignored. Full how-to: [`examples/e2e/README.md`](examples/e2e/README.md). Add new scenarios by copying an existing script — shared env/FastAPI glue lives in `examples/e2e/_common.py`.
 
 ### Running the full validation suite
 

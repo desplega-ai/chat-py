@@ -1,12 +1,12 @@
 [project]
-name = "chat-adapter-github"
+name = "chat-py-adapter-github"
 version = "0.1.0"
 description = "GitHub adapter for chat-py"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.13"
 authors = [
-    { name = "Desplega Labs", email = "hello@desplega.ai" },
+    { name = "Desplega Labs", email = "contact@desplega.sh" },
 ]
 keywords = ["chat", "bot", "slack", "teams", "discord", "google-chat", "telegram", "github", "linear", "whatsapp"]
 classifiers = [
@@ -17,10 +17,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
-dependencies = ["chat", "chat-adapter-shared", "gidgethub>=5.3", "httpx>=0.27", "cryptography>=43.0"]
+dependencies = ["chat-py", "chat-py-adapter-shared", "gidgethub>=5.3", "httpx>=0.27", "cryptography>=43.0"]
 
 [project.urls]
-Homepage = "https://github.com/desplega-ai/chat-py"
+Homepage = "https://desplega.sh"
 Repository = "https://github.com/desplega-ai/chat-py"
 Issues = "https://github.com/desplega-ai/chat-py/issues"
 

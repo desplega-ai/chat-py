@@ -7,7 +7,7 @@ Implements the full `State` protocol — locks, subscriptions, queues, and cache
 ## Install
 
 ```bash
-uv add chat-adapter-state-memory
+uv add chat-py-adapter-state-memory
 ```
 
 ## Minimal example

@@ -7,7 +7,7 @@ Supports both HTTP-endpoint Chat apps (Workspace Add-ons event envelopes) and Pu
 ## Install
 
 ```bash
-uv add chat chat-adapter-gchat chat-adapter-state-pg
+uv add chat-py chat-py-adapter-gchat chat-py-adapter-state-pg
 ```
 
 ## Auth / config

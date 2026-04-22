@@ -9,8 +9,10 @@ Telegram adapter for [`chat-py`](https://github.com/desplega-ai/chat-py). Python
 ## Install
 
 ```bash
-uv add chat-adapter-telegram
+uv add chat-py chat-py-adapter-telegram chat-py-adapter-state-memory
 ```
+
+Along with the core SDK and any `chat-py-adapter-state-*` (use `chat-py-adapter-state-redis` / `-state-pg` in production).
 
 ## Planned features
 

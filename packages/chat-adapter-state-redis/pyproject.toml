@@ -1,12 +1,12 @@
 [project]
-name = "chat-adapter-state-redis"
+name = "chat-py-adapter-state-redis"
 version = "0.1.0"
 description = "Redis state adapter for chat-py"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.13"
 authors = [
-    { name = "Desplega Labs", email = "hello@desplega.ai" },
+    { name = "Desplega Labs", email = "contact@desplega.sh" },
 ]
 keywords = ["chat", "bot", "slack", "teams", "discord", "google-chat", "telegram", "github", "linear", "whatsapp"]
 classifiers = [
@@ -18,12 +18,12 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "chat",
+    "chat-py",
     "redis[hiredis]>=5.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/desplega-ai/chat-py"
+Homepage = "https://desplega.sh"
 Repository = "https://github.com/desplega-ai/chat-py"
 Issues = "https://github.com/desplega-ai/chat-py/issues"
 

@@ -7,7 +7,7 @@ Targets Discord's HTTP Interactions path (signed webhooks) with REST fall-outs f
 ## Install
 
 ```bash
-uv add chat chat-adapter-discord chat-adapter-state-memory
+uv add chat-py chat-py-adapter-discord chat-py-adapter-state-memory
 ```
 
 ## Auth / config

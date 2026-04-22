@@ -1,12 +1,12 @@
 [project]
-name = "chat"
+name = "chat-py"
 version = "0.1.0"
 description = "Unified chat SDK for building bots across Slack, Teams, Google Chat, Discord, Telegram, GitHub, Linear, and WhatsApp — Python port of vercel/chat"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.13"
 authors = [
-    { name = "Desplega Labs", email = "hello@desplega.ai" },
+    { name = "Desplega Labs", email = "contact@desplega.sh" },
 ]
 keywords = ["chat", "bot", "slack", "teams", "discord", "google-chat", "telegram", "github", "linear", "whatsapp"]
 classifiers = [
@@ -20,7 +20,7 @@ classifiers = [
 dependencies = ["mistune>=3.0", "typing-extensions>=4.12"]
 
 [project.urls]
-Homepage = "https://github.com/desplega-ai/chat-py"
+Homepage = "https://desplega.sh"
 Repository = "https://github.com/desplega-ai/chat-py"
 Issues = "https://github.com/desplega-ai/chat-py/issues"
 

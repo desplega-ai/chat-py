@@ -22,17 +22,17 @@ A lot of modern agent and backend work — LangGraph, DSPy, CrewAI, FastAPI serv
 
 ## Installation
 
-Install the core SDK and the adapters you need:
+A `chat-py` bot needs three pieces: the **core SDK** (`chat-py`), at least one **platform adapter** (`chat-py-adapter-<slack|teams|…>`), and exactly one **state adapter** (`chat-py-adapter-state-<memory|redis|ioredis|pg>`). The state adapter is not optional — it's where thread subscriptions, lock tokens, and dedupe/cache data live. Use `state-memory` for local development and one of the persistent backends in production.
 
 ```bash
-uv add chat
-uv add chat-adapter-slack chat-adapter-state-memory
+uv add chat-py
+uv add chat-py-adapter-slack chat-py-adapter-state-memory
 ```
 
 Or with `pip`:
 
 ```bash
-pip install chat chat-adapter-slack chat-adapter-state-memory
+pip install chat-py chat-py-adapter-slack chat-py-adapter-state-memory
 ```
 
 ## Quickstart
@@ -76,6 +76,17 @@ async def slack_webhook(request: Request):
 ```
 
 See the [Getting Started guide](docs/getting-started.md) for a full walkthrough and the [`examples/`](examples/) directory for runnable projects.
+
+### Manual end-to-end tests
+
+Per-adapter scripts that boot a FastAPI webhook server and drive the real provider API live under [`examples/e2e/`](examples/e2e/) (one file per scenario). These are **not** pytest tests — they're meant for local smoke / pre-release verification. Each script's docstring lists the env vars it needs; the script exits early with a clear message if any are missing.
+
+```bash
+uv sync --group e2e                             # fastapi + uvicorn + python-dotenv
+uv run python examples/e2e/slack/echo.py        # @mention echo; set SLACK_BOT_TOKEN + SLACK_SIGNING_SECRET in .env first
+```
+
+Full instructions (including how to write new scenarios) in [`examples/e2e/README.md`](examples/e2e/README.md).
 
 ## Supported platforms
 
