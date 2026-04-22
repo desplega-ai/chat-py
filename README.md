@@ -18,7 +18,7 @@ A lot of modern agent and backend work — LangGraph, DSPy, CrewAI, FastAPI serv
 2. **Cross-language consistency.** Teams mixing Python and TypeScript services can use the same bot primitives in both.
 3. **Batteries included for the Python ecosystem.** `uv`-native workspace, async everywhere, `pydantic`-compatible data classes, FastAPI / Starlette / aiohttp examples.
 
-`chat-py` is maintained by [Desplega Labs](https://desplega.ai/labs) as an independent port — not affiliated with Vercel. We track upstream closely and contribute fixes back where relevant.
+`chat-py` is maintained by [Desplega Labs](https://desplega.sh?utm_source=github_chat-py) as an independent port — not affiliated with Vercel. We track upstream closely and contribute fixes back where relevant.
 
 ## Installation
 
