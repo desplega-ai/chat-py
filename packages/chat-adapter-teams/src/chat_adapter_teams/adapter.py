@@ -186,6 +186,8 @@ class TeamsAdapter:
     """
 
     name = "teams"
+    lock_scope: Literal["thread", "channel"] | None = "thread"
+    persist_message_history: bool = False
 
     def __init__(self, config: TeamsAdapterConfig | None = None) -> None:
         cfg: TeamsAdapterConfig = dict(config or {})  # type: ignore[assignment]
@@ -326,6 +328,25 @@ class TeamsAdapter:
             ok = verify_bearer_token(auth_header, self.app_id)
             if not ok:
                 return 401, {}, "unauthorized"
+
+        # Best-effort dispatch — parse ``message`` activities and fire the
+        # ``on_new_message`` / ``on_new_mention`` pipeline via
+        # :meth:`Chat.dispatch`. Other activity types (``invoke``,
+        # ``conversationUpdate``, ``messageReaction``) are acknowledged but
+        # not routed here; higher layers can inspect ``body`` directly.
+        activity = body if isinstance(body, dict) else {}
+        if activity.get("type") == "message":
+            chat = getattr(self, "_chat", None)
+            if chat is not None:
+                try:
+                    message = self.parse_message(activity)
+                    chat.process_message(self, message.thread_id, message)
+                except Exception as err:
+                    self.logger.warn(
+                        "teams: dispatch failed",
+                        {"activity_id": activity.get("id"), "error": repr(err)},
+                    )
+
         return 200, {"content-type": "application/json"}, "{}"
 
     # ------------------------------------------------------------ posting
@@ -510,6 +531,76 @@ class TeamsAdapter:
         if self._http_client is not None:
             await self._http_client.aclose()
             self._http_client = None
+
+    # -------------------------------------------------------- Adapter Protocol
+
+    async def initialize(self, chat: Any) -> None:
+        """Store the :class:`Chat` reference for later dispatch.
+
+        Called by :meth:`Chat._do_initialize` once per adapter.
+        """
+
+        self._chat = chat
+
+    async def disconnect(self) -> None:
+        """Tear down any background resources (delegates to :meth:`close`)."""
+
+        await self.close()
+
+    async def subscribe(self, thread_id: str) -> None:
+        """Subscribe the bot to a thread — no-op on Teams (subscription is
+        implicit in Bot Framework once the bot is added to a conversation).
+        """
+
+        return None
+
+    async def unsubscribe(self, thread_id: str) -> None:
+        """Unsubscribe — no-op on Teams (same reasoning as :meth:`subscribe`)."""
+
+        return None
+
+    async def post_channel_message(self, channel_id: str, message: Any) -> dict[str, Any]:
+        """Post to a channel root (no existing thread). Teams treats this as a
+        new conversation in the channel, which requires the Graph API reader
+        path — not yet ported.
+        """
+
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "postChannelMessage is not yet supported by the Teams SDK",
+            "postChannelMessage",
+        )
+
+    async def open_modal(self, trigger_id: str, view: Any) -> Any:
+        """Open a Teams task module. Not yet ported — upstream uses the
+        ``taskModule/continue`` invoke response flow, which is not wired up
+        through this webhook facade.
+        """
+
+        from chat.errors import NotImplementedError as ChatNotImplementedError
+
+        raise ChatNotImplementedError(
+            "openModal is not yet supported by the Teams SDK",
+            "openModal",
+        )
+
+    def get_channel_visibility(
+        self, thread_id: str
+    ) -> Literal["external", "private", "workspace", "unknown"]:
+        """Best-effort visibility lookup from thread ID shape.
+
+        Teams doesn't expose visibility via the webhook activity; upstream
+        resolves it via Graph API which is not yet ported. Returns
+        ``"private"`` for DMs and ``"unknown"`` otherwise.
+        """
+
+        try:
+            if self.is_dm(thread_id):
+                return "private"
+        except Exception:
+            pass
+        return "unknown"
 
     # ======================================================================
     # Internal helpers

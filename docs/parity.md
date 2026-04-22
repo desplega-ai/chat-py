@@ -132,10 +132,12 @@ These methods are declared on the adapter but raise `chat.errors.NotImplementedE
   - `open_modal` — GitHub has no modal surface; use issue comments or PR review comments for interactive flows. Raises `chat.NotImplementedError(feature="open_modal")`.
   - `post_channel_message` — GitHub has no channel-level post surface; messages are always thread-scoped (issue or PR). Raises `chat.NotImplementedError(feature="post_channel_message")`.
   - `fetch_channel_messages` — GitHub has no flat channel-message stream; comments belong to individual issues/PRs. Raises `chat.NotImplementedError(feature="fetch_channel_messages")`.
-- **`chat-adapter-teams`** — 7 sites in `packages/chat-adapter-teams/src/chat_adapter_teams/adapter.py` (approx. `:444-495`):
-  - `read_thread` — upstream relies on `@microsoft/teams.apps`'s live dispatch which has no stable Python equivalent.
-  - Certificate-based auth (`certificate` config) — scaffolded but not wired.
-  - 5 reaction-related paths on Teams' Bot Framework REST transport — Teams does not expose message reactions through the REST API.
+- **`chat-adapter-teams`** — 9 sites in `packages/chat-adapter-teams/src/chat_adapter_teams/adapter.py` (7 in `:444-498`, plus `post_channel_message` / `open_modal` added in DES-196 phase 7). Pinned by `packages/chat-adapter-teams/tests/test_unsupported_features.py`:
+  - `add_reaction` / `remove_reaction` — Teams' Bot Framework REST transport does not expose message reactions. Raises `chat.NotImplementedError(feature="addReaction" | "removeReaction")`.
+  - `fetch_messages` / `fetch_thread` / `fetch_channel_messages` / `list_threads` / `fetch_channel_info` — Teams history requires the Graph API reader which is not yet ported. Each raises `chat.NotImplementedError` with a matching camelCase `feature` attribute.
+  - `post_channel_message` — requires Graph API (creating a new conversation in a channel is not supported via Bot Framework REST). Raises `chat.NotImplementedError(feature="postChannelMessage")`.
+  - `open_modal` — Teams task modules ship via the `taskModule/continue` invoke response flow, which isn't wired through this webhook facade yet. Raises `chat.NotImplementedError(feature="openModal")`.
+  - Certificate-based auth (`certificate` config) — deprecated upstream and unsupported here. Construction raises `chat_adapter_shared.ValidationError` (not `NotImplementedError`); pinned by the same test module.
 - **`chat-adapter-whatsapp`** — 7 sites in `packages/chat-adapter-whatsapp/src/chat_adapter_whatsapp/adapter.py`:
   - `edit_message` — WhatsApp Cloud API has no edit endpoint; callers must send a new message. Raises `chat.NotImplementedError(feature="editMessage")`.
   - `delete_message` — WhatsApp Cloud API has no delete endpoint. Raises `chat.NotImplementedError(feature="deleteMessage")`.
