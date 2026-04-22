@@ -23,6 +23,7 @@ dependencies = [
     "slack-sdk>=3.26",
     "httpx>=0.27",
     "cryptography>=43.0",
+    "aiohttp>=3.9",
 ]
 
 [project.urls]

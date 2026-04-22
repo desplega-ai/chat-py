@@ -54,4 +54,4 @@ packages = ["chat"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["packages/*/tests", "packages/*/src"]
-addopts = ["--import-mode=importlib"]
+addopts = "--import-mode=importlib"
